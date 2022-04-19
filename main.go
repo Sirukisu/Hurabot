@@ -24,7 +24,8 @@ func main() {
 	err := parser.Parse(os.Args)
 
 	if err != nil {
-		fmt.Print(parser.Usage(err))
+		fmt.Println("Error: " + err.Error())
+		fmt.Println("Type -h for usage info")
 	}
 
 	if modelCommandCreate.Happened() {
