@@ -4,18 +4,32 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
+	"strconv"
+	"strings"
 )
 
-type DiscordMessagesChannelInfo struct {
+type DiscordMessagesChannelInfoFromFile struct {
 	Id    string
 	Type  int
 	Name  string
-	Guild DiscordMessagesChannelGuildInfo
+	Guild DiscordMessagesChannelGuildInfoFromFile
 }
 
-type DiscordMessagesChannelGuildInfo struct {
+type DiscordMessagesChannelGuildInfoFromFile struct {
 	Id   string
+	Name string
+}
+
+type DiscordGuild struct {
+	Id       int
+	Name     string
+	Channels []DiscordChannel
+}
+
+type DiscordChannel struct {
+	Id   int
 	Name string
 }
 
@@ -40,24 +54,92 @@ func CreateModelFromMessages(directory *os.File) {
 	}
 
 	loadedChannels := loadChannelInfoFromMessages(directory, directoryContents)
-	fmt.Println(loadedChannels)
 
-	// make list of guilds
-	listOfGuilds := make([]DiscordMessagesChannelGuildInfo, 0, len(loadedChannels))
+	// make list of guilds & check for duplicates
+	listOfGuilds := make([]DiscordMessagesChannelGuildInfoFromFile, 0)
 
 	for _, channel := range loadedChannels {
-		newGuild := DiscordMessagesChannelGuildInfo{
+		newGuild := DiscordMessagesChannelGuildInfoFromFile{
 			Id:   channel.Guild.Id,
 			Name: channel.Guild.Name,
 		}
 
 		listOfGuilds = append(listOfGuilds, newGuild)
 	}
-	fmt.Println(listOfGuilds)
+	listOfGuildsParsed := checkForDuplicateGuilds(listOfGuilds)
+
+	// finally organize guilds with channels
+	discordGuilds := make([]DiscordGuild, 0)
+
+	for _, guild := range listOfGuildsParsed {
+		guildId, err := strconv.Atoi(guild.Id)
+
+		if err != nil {
+			guildId = 0
+		}
+
+		newGuild := DiscordGuild{
+			Id:       guildId,
+			Name:     guild.Name,
+			Channels: nil,
+		}
+
+		for _, channel := range loadedChannels {
+			if channel.Guild.Id == guild.Id {
+				channelID, err := strconv.Atoi(channel.Id)
+
+				if err != nil {
+					fmt.Println(err)
+				}
+
+				newChannel := DiscordChannel{
+					Id:   channelID,
+					Name: channel.Name,
+				}
+
+				newGuild.Channels = append(newGuild.Channels, newChannel)
+			}
+		}
+		discordGuilds = append(discordGuilds, newGuild)
+	}
+
+	// fix direct messages
+	directMessagesGuild := DiscordGuild{
+		Id:       0,
+		Name:     "Direct Messages",
+		Channels: nil,
+	}
+
+	index, err := os.ReadFile(directory.Name() + string(os.PathSeparator) + "index.json")
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	marshalledIndex := map[string]string{}
+	json.Unmarshal(index, &marshalledIndex)
+
+	for key, value := range marshalledIndex {
+		if strings.HasPrefix(value, "Direct Message with") {
+			channelID, err := strconv.Atoi(key)
+
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			newDirectMessage := DiscordChannel{
+				Id:   channelID,
+				Name: value,
+			}
+			directMessagesGuild.Channels = append(directMessagesGuild.Channels, newDirectMessage)
+		}
+	}
+
+	discordGuilds = append(discordGuilds, directMessagesGuild)
 }
 
-func loadChannelInfoFromMessages(directory *os.File, directoryContents []os.DirEntry) []DiscordMessagesChannelInfo {
-	loadedChannels := make([]DiscordMessagesChannelInfo, 0, len(directoryContents))
+func loadChannelInfoFromMessages(directory *os.File, directoryContents []os.DirEntry) []DiscordMessagesChannelInfoFromFile {
+	loadedChannels := make([]DiscordMessagesChannelInfoFromFile, 0)
 
 	for _, dc := range directoryContents {
 		os.Chdir(directory.Name() + string(os.PathSeparator) + dc.Name())
@@ -83,7 +165,7 @@ func loadChannelInfoFromMessages(directory *os.File, directoryContents []os.DirE
 					fmt.Println(err)
 				}
 
-				newChannel := DiscordMessagesChannelInfo{}
+				newChannel := DiscordMessagesChannelInfoFromFile{}
 
 				err = json.Unmarshal(fileContent, &newChannel)
 
@@ -95,8 +177,20 @@ func loadChannelInfoFromMessages(directory *os.File, directoryContents []os.DirE
 			}
 		}
 	}
-	fmt.Println(loadedChannels)
 	return loadedChannels
+}
+
+func checkForDuplicateGuilds(guilds []DiscordMessagesChannelGuildInfoFromFile) []DiscordMessagesChannelGuildInfoFromFile {
+	occurred := map[string]bool{}
+	result := make([]DiscordMessagesChannelGuildInfoFromFile, 0)
+
+	for i, _ := range guilds {
+		if occurred[guilds[i].Id] != true {
+			occurred[guilds[i].Id] = true
+			result = append(result, guilds[i])
+		}
+	}
+	return result
 }
 
 func processCSV(files []string) {
