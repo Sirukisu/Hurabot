@@ -2,50 +2,101 @@ package main
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
-	"log"
 	"os"
-	"strings"
 )
 
-func CreateModel(files *[]string) {
-	var filesToProcess []string
+type DiscordMessagesChannelInfo struct {
+	Id    string
+	Type  int
+	Name  string
+	Guild DiscordMessagesChannelGuildInfo
+}
 
-	for _, file := range *files {
-		fileInfo, err := os.Stat(file)
+type DiscordMessagesChannelGuildInfo struct {
+	Id   string
+	Name string
+}
 
-		if err != nil {
-			log.Fatal("Failed to read file or directory " + file + ": " + err.Error())
+func CreateModelFromMessages(directory *os.File) {
+	directoryInfo, err := directory.Stat()
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if directoryInfo.IsDir() != true {
+		fmt.Println("File " + directory.Name() + " is not a directory")
+		return
+	}
+
+	directoryContents, err := directory.ReadDir(0)
+
+	if err != nil {
+		fmt.Println("Failed to read contents of " + directory.Name() + ": " + err.Error())
+		return
+	}
+
+	loadedChannels := loadChannelInfoFromMessages(directory, directoryContents)
+	fmt.Println(loadedChannels)
+
+	// make list of guilds
+	listOfGuilds := make([]DiscordMessagesChannelGuildInfo, 0, len(loadedChannels))
+
+	for _, channel := range loadedChannels {
+		newGuild := DiscordMessagesChannelGuildInfo{
+			Id:   channel.Guild.Id,
+			Name: channel.Guild.Name,
 		}
 
-		if fileInfo.IsDir() == true {
-			filesInDirectory, err := os.ReadDir(file)
+		listOfGuilds = append(listOfGuilds, newGuild)
+	}
+	fmt.Println(listOfGuilds)
+}
+
+func loadChannelInfoFromMessages(directory *os.File, directoryContents []os.DirEntry) []DiscordMessagesChannelInfo {
+	loadedChannels := make([]DiscordMessagesChannelInfo, 0, len(directoryContents))
+
+	for _, dc := range directoryContents {
+		os.Chdir(directory.Name() + string(os.PathSeparator) + dc.Name())
+		wd, err := os.Getwd()
+
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+
+		subDirectoryContents, _ := os.ReadDir(wd)
+		for _, sdc := range subDirectoryContents {
+			file, err := sdc.Info()
 
 			if err != nil {
-				log.Fatal("Failed to list files in directory " + file + ": " + err.Error())
+				fmt.Println(err)
 			}
 
-			for _, fileInDirectory := range filesInDirectory {
-				if strings.HasSuffix(fileInDirectory.Name(), ".csv") {
-					log.Print("[DEBUG] Found .csv file " + fileInDirectory.Name() + "in folder " + file)
-					filesToProcess = append(filesToProcess, file+fileInDirectory.Name())
-				} else {
-					log.Print("[DEBUG] File " + fileInDirectory.Name() + " in folder " + file + " doesn't end with .csv, not processing")
-					continue
+			if file.Name() == "channel.json" {
+				fileContent, err := os.ReadFile(file.Name())
+
+				if err != nil {
+					fmt.Println(err)
 				}
-			}
-		} else {
-			if strings.HasSuffix(file, ".csv") {
-				log.Print("[DEBUG] Found .csv file " + fileInfo.Name())
-				filesToProcess = append(filesToProcess, file)
-			} else {
-				log.Print("[DEBUG] File " + file + "doesn't end with .csv, not processing")
-				continue
+
+				newChannel := DiscordMessagesChannelInfo{}
+
+				err = json.Unmarshal(fileContent, &newChannel)
+
+				if err != nil {
+					fmt.Println(err)
+				}
+
+				loadedChannels = append(loadedChannels, newChannel)
 			}
 		}
 	}
-
-	processCSV(filesToProcess)
+	fmt.Println(loadedChannels)
+	return loadedChannels
 }
 
 func processCSV(files []string) {

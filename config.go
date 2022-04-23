@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"github.com/jroimartin/gocui"
+	//"github.com/jroimartin/gocui"
 	"log"
 	"os"
 	"strings"
@@ -63,7 +63,7 @@ func CreateEmptyConfig(configFile *os.File) MainBotConfig {
 
 	switch resultChar {
 	case "y":
-		botConfig = EditConfig(botConfig)
+		//botConfig = EditConfig(botConfig)
 	}
 
 	botConfigJson, err := json.MarshalIndent(botConfig, "", "\t")
@@ -82,7 +82,7 @@ func CreateEmptyConfig(configFile *os.File) MainBotConfig {
 	return botConfig
 }
 
-func EditConfig(config MainBotConfig) MainBotConfig {
+/*func EditConfig(config MainBotConfig) MainBotConfig {
 	gui, err := gocui.NewGui(gocui.OutputNormal)
 
 	if err != nil {
@@ -119,4 +119,4 @@ func EditConfigLayout(gui *gocui.Gui) error {
 
 func quit(gui *gocui.Gui, v *gocui.View) error {
 	return gocui.ErrQuit
-}
+}*/

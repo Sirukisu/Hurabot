@@ -12,11 +12,11 @@ func main() {
 
 	// model commands
 	modelCommand := parser.NewCommand("model", "manage bot word models")
-	modelCommandCreate := modelCommand.NewCommand("create", "create new model")
-	modelCommandCreateArgs := modelCommandCreate.StringList("f", "file", &argparse.Options{
+	modelCommandCreate := modelCommand.NewCommand("create", "create new model from discord messages")
+	modelCommandCreateArgs := modelCommandCreate.File("f", "file", os.O_RDONLY, 0660, &argparse.Options{
 		Required: true,
-		Validate: verifyCsv,
-		Help:     "CSV file or folder to process",
+		Validate: nil,
+		Help:     "Discord messages folder to process",
 		Default:  nil,
 	})
 	modelCommandList := modelCommand.NewCommand("list", "List current models")
@@ -51,7 +51,7 @@ func main() {
 
 	// handle model commands
 	if modelCommandCreate.Happened() {
-		CreateModel(modelCommandCreateArgs)
+		CreateModelFromMessages(modelCommandCreateArgs)
 	} else if modelCommandList.Happened() {
 
 	} else if modelCommandRemove.Happened() {
@@ -62,7 +62,7 @@ func main() {
 	if botCommandConfigShow.Happened() {
 		BotShowConfig(botCommandConfigFile)
 	} else if botCommandConfigEdit.Happened() {
-		EditConfig(LoadConfig(botCommandConfigFile))
+		//EditConfig(LoadConfig(botCommandConfigFile))
 	}
 }
 
