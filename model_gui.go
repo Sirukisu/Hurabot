@@ -24,7 +24,7 @@ func DiscordChannelSelectionGUI() {
 	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
 		log.Panicln(err)
 	}
-	if err := g.SetKeybinding("", gocui.KeyArrowDown, gocui.ModNone, cursorDown); err != nil {
+	if err := g.SetKeybinding("guilds", gocui.KeyArrowDown, gocui.ModNone, cursorDownGuilds); err != nil {
 		log.Panicln(err)
 	}
 	if err := g.SetKeybinding("", gocui.KeyArrowUp, gocui.ModNone, cursorUp); err != nil {
@@ -36,10 +36,13 @@ func DiscordChannelSelectionGUI() {
 	if err := g.SetKeybinding("channels", gocui.KeyEnter, gocui.ModNone, closeGuild); err != nil {
 		log.Panicln(err)
 	}
+	if err := g.SetKeybinding("channels", gocui.KeyArrowDown, gocui.ModNone, cursorDownChannels); err != nil {
+		log.Panicln(err)
+	}
 	if err := g.SetKeybinding("channels", gocui.KeySpace, gocui.ModNone, changeChannelEnabled); err != nil {
 		log.Panicln(err)
 	}
-	if err := g.SetKeybinding("guilds", gocui.KeyCtrlS, gocui.ModNone, saveName); err != nil {
+	if err := g.SetKeybinding("guilds", gocui.KeyCtrlD, gocui.ModNone, saveName); err != nil {
 		log.Panicln(err)
 	}
 	if err := g.SetKeybinding("modelName", gocui.KeyEnter, gocui.ModNone, confirmName); err != nil {
@@ -77,12 +80,28 @@ func quit(_ *gocui.Gui, _ *gocui.View) error {
 	return gocui.ErrQuit
 }
 
-func cursorDown(_ *gocui.Gui, v *gocui.View) error {
+func cursorDownGuilds(_ *gocui.Gui, v *gocui.View) error {
 	if v != nil {
 		cx, cy := v.Cursor()
 		if err := v.SetCursor(cx, cy+1); err != nil {
 			ox, oy := v.Origin()
 			if ((oy + cy) + 1) < len(DiscordGuilds) {
+				if err := v.SetOrigin(ox, oy+1); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func cursorDownChannels(_ *gocui.Gui, v *gocui.View) error {
+	if v != nil {
+		guildInfo := &DiscordGuilds[GuildSelected]
+		cx, cy := v.Cursor()
+		if err := v.SetCursor(cx, cy+1); err != nil {
+			ox, oy := v.Origin()
+			if ((oy + cy) + 1) < len(guildInfo.Channels) {
 				if err := v.SetOrigin(ox, oy+1); err != nil {
 					return err
 				}
