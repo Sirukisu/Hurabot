@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/akamensky/argparse"
 	"os"
-	"strings"
 )
 
 func main() {
@@ -51,7 +50,7 @@ func main() {
 
 	// handle model commands
 	if modelCommandCreate.Happened() {
-		CreateModelFromMessages(modelCommandCreateArgs)
+		CreateModelInit(modelCommandCreateArgs)
 	} else if modelCommandList.Happened() {
 
 	} else if modelCommandRemove.Happened() {
@@ -64,20 +63,4 @@ func main() {
 	} else if botCommandConfigEdit.Happened() {
 		//EditConfig(LoadConfig(botCommandConfigFile))
 	}
-}
-
-func verifyCsv(args []string) error {
-	fileInfo, err := os.Stat(args[0])
-
-	if err != nil {
-		//log.Fatal(err)
-		return nil
-	}
-
-	if fileInfo.IsDir() == false {
-		if strings.HasSuffix(args[0], ".csv") == false {
-			//log.Fatal("File doesn't end with .csv.")
-		}
-	}
-	return nil
 }
