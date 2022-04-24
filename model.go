@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -35,6 +36,7 @@ type DiscordChannel struct {
 }
 
 var DiscordGuilds = make([]DiscordGuild, 0)
+var ModelName string
 
 func CreateModelFromMessages(directory *os.File) {
 	directoryInfo, err := directory.Stat()
@@ -141,6 +143,34 @@ func CreateModelFromMessages(directory *os.File) {
 
 	DiscordGuilds = append(DiscordGuilds, directMessagesGuild)
 	DiscordChannelSelectionGUI()
+
+	fmt.Println("Model name: " + ModelName)
+	fmt.Println("Enabled channels:")
+
+	for _, guild := range DiscordGuilds {
+		for _, channel := range guild.Channels {
+			if channel.Enabled == true {
+				fmt.Println(channel.Name)
+			}
+		}
+	}
+
+	fmt.Println("Continue? y/n")
+	reader := bufio.NewReader(os.Stdin)
+	resultChar, err := reader.ReadString('\n')
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	resultChar = strings.ToLower(resultChar)
+
+	switch resultChar {
+	case "y":
+		fmt.Println("Create model here")
+	case "n":
+		fmt.Println("Aborted")
+	}
+
 }
 
 func loadChannelInfoFromMessages(directory *os.File, directoryContents []os.DirEntry) []DiscordMessagesChannelInfoFromFile {

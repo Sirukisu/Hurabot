@@ -39,6 +39,15 @@ func DiscordChannelSelectionGUI() {
 	if err := g.SetKeybinding("channels", gocui.KeySpace, gocui.ModNone, changeChannelEnabled); err != nil {
 		log.Panicln(err)
 	}
+	if err := g.SetKeybinding("guilds", gocui.KeyCtrlS, gocui.ModNone, saveName); err != nil {
+		log.Panicln(err)
+	}
+	if err := g.SetKeybinding("modelName", gocui.KeyEnter, gocui.ModNone, confirmName); err != nil {
+		log.Panicln(err)
+	}
+	if err := g.SetKeybinding("modelName", gocui.KeyCtrlD, gocui.ModNone, closeConfirm); err != nil {
+		log.Panicln(err)
+	}
 
 	if err := g.MainLoop(); err != nil && err != gocui.ErrQuit {
 		log.Panicln(err)
@@ -178,4 +187,46 @@ func changeChannelEnabled(g *gocui.Gui, v *gocui.View) error {
 		return nil
 	})
 	return nil
+}
+
+func saveName(g *gocui.Gui, _ *gocui.View) error {
+	maxX, maxY := g.Size()
+
+	if v, err := g.SetView("modelName", maxX/2-30, maxY/2, maxX/2+30, maxY/2+2); err != nil {
+		if err != gocui.ErrUnknownView {
+			return err
+		}
+
+		v.Title = "Enter name for model"
+		v.Editable = true
+
+		if _, err := g.SetCurrentView("modelName"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func closeConfirm(g *gocui.Gui, _ *gocui.View) error {
+	if err := g.DeleteView("modelName"); err != nil {
+		return err
+	}
+	if _, err := g.SetCurrentView("guilds"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func confirmName(_ *gocui.Gui, v *gocui.View) error {
+	var nameContent string
+	var err error
+	_, cy := v.Cursor()
+
+	if nameContent, err = v.Line(cy); err != nil {
+		nameContent = "model"
+	}
+
+	ModelName = nameContent
+
+	return gocui.ErrQuit
 }
