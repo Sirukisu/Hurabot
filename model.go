@@ -29,9 +29,12 @@ type DiscordGuild struct {
 }
 
 type DiscordChannel struct {
-	Id   int
-	Name string
+	Id      int
+	Name    string
+	Enabled bool
 }
+
+var DiscordGuilds = make([]DiscordGuild, 0)
 
 func CreateModelFromMessages(directory *os.File) {
 	directoryInfo, err := directory.Stat()
@@ -69,7 +72,6 @@ func CreateModelFromMessages(directory *os.File) {
 	listOfGuildsParsed := checkForDuplicateGuilds(listOfGuilds)
 
 	// finally organize guilds with channels
-	discordGuilds := make([]DiscordGuild, 0)
 
 	for _, guild := range listOfGuildsParsed {
 		guildId, err := strconv.Atoi(guild.Id)
@@ -93,14 +95,15 @@ func CreateModelFromMessages(directory *os.File) {
 				}
 
 				newChannel := DiscordChannel{
-					Id:   channelID,
-					Name: channel.Name,
+					Id:      channelID,
+					Name:    channel.Name,
+					Enabled: false,
 				}
 
 				newGuild.Channels = append(newGuild.Channels, newChannel)
 			}
 		}
-		discordGuilds = append(discordGuilds, newGuild)
+		DiscordGuilds = append(DiscordGuilds, newGuild)
 	}
 
 	// fix direct messages
@@ -128,14 +131,16 @@ func CreateModelFromMessages(directory *os.File) {
 			}
 
 			newDirectMessage := DiscordChannel{
-				Id:   channelID,
-				Name: value,
+				Id:      channelID,
+				Name:    value,
+				Enabled: false,
 			}
 			directMessagesGuild.Channels = append(directMessagesGuild.Channels, newDirectMessage)
 		}
 	}
 
-	discordGuilds = append(discordGuilds, directMessagesGuild)
+	DiscordGuilds = append(DiscordGuilds, directMessagesGuild)
+	DiscordChannelSelectionGUI()
 }
 
 func loadChannelInfoFromMessages(directory *os.File, directoryContents []os.DirEntry) []DiscordMessagesChannelInfoFromFile {
@@ -173,7 +178,11 @@ func loadChannelInfoFromMessages(directory *os.File, directoryContents []os.DirE
 					fmt.Println(err)
 				}
 
-				loadedChannels = append(loadedChannels, newChannel)
+				if newChannel.Name != "" {
+					loadedChannels = append(loadedChannels, newChannel)
+				} else {
+					continue
+				}
 			}
 		}
 	}
@@ -184,7 +193,7 @@ func checkForDuplicateGuilds(guilds []DiscordMessagesChannelGuildInfoFromFile) [
 	occurred := map[string]bool{}
 	result := make([]DiscordMessagesChannelGuildInfoFromFile, 0)
 
-	for i, _ := range guilds {
+	for i := range guilds {
 		if occurred[guilds[i].Id] != true {
 			occurred[guilds[i].Id] = true
 			result = append(result, guilds[i])

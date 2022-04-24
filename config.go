@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	//"github.com/jroimartin/gocui"
 	"log"
 	"os"
 	"strings"
