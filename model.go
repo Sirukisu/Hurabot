@@ -3,10 +3,15 @@ package main
 import (
 	"bufio"
 	"encoding/csv"
+	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -35,10 +40,22 @@ type DiscordChannel struct {
 	Enabled bool
 }
 
+type MessagesCsv struct {
+	ID          int
+	Timestamp   string
+	Contents    string
+	Attachments string
+}
+
+type WordModel struct {
+	Words  []string
+	Emojis []string
+}
+
 var DiscordGuilds = make([]DiscordGuild, 0)
 var ModelName string
 
-func CreateModelFromMessages(directory *os.File) {
+func CreateModelInit(directory *os.File) {
 	directoryInfo, err := directory.Stat()
 
 	if err != nil {
@@ -58,6 +75,7 @@ func CreateModelFromMessages(directory *os.File) {
 		return
 	}
 
+	// just load everything from the directory & subdirectories
 	loadedChannels := loadChannelInfoFromMessages(directory, directoryContents)
 
 	// make list of guilds & check for duplicates
@@ -122,7 +140,11 @@ func CreateModelFromMessages(directory *os.File) {
 	}
 
 	marshalledIndex := map[string]string{}
-	json.Unmarshal(index, &marshalledIndex)
+	err = json.Unmarshal(index, &marshalledIndex)
+
+	if err != nil {
+		fmt.Println(err)
+	}
 
 	for key, value := range marshalledIndex {
 		if strings.HasPrefix(value, "Direct Message with") {
@@ -142,8 +164,11 @@ func CreateModelFromMessages(directory *os.File) {
 	}
 
 	DiscordGuilds = append(DiscordGuilds, directMessagesGuild)
+
+	// start GUI for selecting enabled channels
 	DiscordChannelSelectionGUI()
 
+	// report model name and enabled channels after GUI
 	fmt.Println("Model name: " + ModelName)
 	fmt.Println("Enabled channels:")
 
@@ -155,22 +180,21 @@ func CreateModelFromMessages(directory *os.File) {
 		}
 	}
 
+	// ask if user wants to start making the model
 	fmt.Println("Continue? y/n")
 	reader := bufio.NewReader(os.Stdin)
-	resultChar, err := reader.ReadString('\n')
+	resultChar, _, err := reader.ReadRune()
 
 	if err != nil {
 		log.Fatal(err)
 	}
-	resultChar = strings.ToLower(resultChar)
 
-	switch resultChar {
+	switch strings.ToLower(string(resultChar)) {
 	case "y":
-		fmt.Println("Create model here")
+		CreateModel(directory)
 	case "n":
 		fmt.Println("Aborted")
 	}
-
 }
 
 func loadChannelInfoFromMessages(directory *os.File, directoryContents []os.DirEntry) []DiscordMessagesChannelInfoFromFile {
@@ -232,18 +256,249 @@ func checkForDuplicateGuilds(guilds []DiscordMessagesChannelGuildInfoFromFile) [
 	return result
 }
 
-func processCSV(files []string) {
-	//var wordList []string
+func CreateModel(fileOrDirectory *os.File) {
+	// check that there are some guilds
+	if len(DiscordGuilds) < 1 {
+		log.Fatalln("No guilds loaded, aborting")
+	}
 
-	for _, file := range files {
-		fileContent, err := os.Open(file)
+	// check model name & modify is necessary
+	if ModelName == "" {
+		ModelName = "model"
+		log.Println("Model name was not set, automatically setting it to " + ModelName)
+	}
+
+	if strings.HasSuffix(ModelName, ".gob") == false {
+		ModelName = ModelName + ".gob"
+	}
+
+	log.Println("Making model " + ModelName)
+
+	// create parsed messages variable
+	var messagesParsed []MessagesCsv
+
+	// find if we have a file or a directory
+	fileInfo, err := fileOrDirectory.Stat()
+
+	if err != nil {
+		log.Fatalln("Could not read " + fileOrDirectory.Name() + ": " + err.Error())
+	}
+
+	if fileInfo.IsDir() == true {
+		// directory processing mode
 
 		if err != nil {
-			fmt.Println("Error reading file " + file + ": " + err.Error())
+			log.Fatalln("Failed to read directory contents: " + err.Error())
 		}
 
-		reader := csv.NewReader(fileContent)
-		records, _ := reader.ReadAll()
-		fmt.Println(records)
+		// loop through all enabled channels & process their messages.csv files
+		for _, guild := range DiscordGuilds {
+			for _, channel := range guild.Channels {
+				if channel.Enabled == true {
+					log.Println("Processing channel " + channel.Name + " in guild " + guild.Name)
+
+					// change into channel directory
+					if err := os.Chdir(fileOrDirectory.Name() + string(os.PathSeparator) + "c" + strconv.Itoa(channel.Id)); err != nil {
+						log.Fatalln("Failed to change to channel directory: " + err.Error())
+					}
+
+					// process messages.csv
+					messagesCsv, err := os.Open("messages.csv")
+
+					if err != nil {
+						log.Fatalln("Failed to read messages.csv for channel " + channel.Name + ": " + err.Error())
+					}
+
+					// parse messages & append to the slice
+					newMessagesParsed, err := processMessagesCSV(messagesCsv)
+
+					if err != nil {
+						log.Fatalln("Error parsing messages.csv for channel " + channel.Name + ": " + err.Error())
+					}
+					messagesParsed = append(messagesParsed, newMessagesParsed...)
+				}
+			}
+		}
+
+	} else {
+		// TODO file processing mode
 	}
+
+	// check if any messages were parsed
+	if len(messagesParsed) < 1 {
+		log.Panicln("No messages were parsed, aborting")
+	}
+	log.Println("Parsed " + strconv.Itoa(len(messagesParsed)) + " total messages")
+
+	// filter messages
+	log.Println("Now sanitizing messages and splitting words")
+	wordList, emojiList := sanitizeMessages(messagesParsed)
+
+	// save model
+	log.Println("Word processing done, saving model to models/" + ModelName)
+
+	err = saveModel(wordList, emojiList)
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+}
+
+func processMessagesCSV(csvFile *os.File) ([]MessagesCsv, error) {
+	if csvFile.Name() != "messages.csv" {
+		return nil, errors.New("filename is not messages.csv")
+	}
+
+	var messages []MessagesCsv
+
+	reader := csv.NewReader(csvFile)
+	reader.FieldsPerRecord = 4
+
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		// skip the first line which has the record info
+		if record[0] == "ID" {
+			continue
+		}
+
+		newMessageId, err := strconv.Atoi(record[0])
+
+		if err != nil {
+			return nil, err
+		}
+
+		newMessage := MessagesCsv{
+			ID:          newMessageId,
+			Timestamp:   record[1],
+			Contents:    record[2],
+			Attachments: record[3],
+		}
+
+		messages = append(messages, newMessage)
+	}
+	return messages, nil
+}
+
+func sanitizeMessages(messages []MessagesCsv) ([]string, []string) {
+	// separate strings into words & emojis
+	wordList := make([]string, 0)
+	emojiList := make([]string, 0)
+
+	// loop through all messages, separate into words & emojis
+	for _, message := range messages {
+		messageWords := strings.Split(message.Contents, " ")
+		for _, word := range messageWords {
+
+			// check if word is a URL, skip if it is
+			_, err := url.ParseRequestURI(word)
+
+			if err == nil {
+				log.Println("Word " + word + " is a URL, skipping")
+				continue
+			}
+
+			// check if word has a custom emoji, add to emoji list instead
+			if strings.HasPrefix(word, "<:") && strings.HasSuffix(word, ">") {
+				emojiList = append(emojiList, word)
+				continue
+			}
+
+			// check if word has an animated emoji, then skip
+			if strings.HasPrefix(word, "<a:") && strings.HasSuffix(word, ">") {
+				log.Println("Word " + word + " is an animated emoji, skipping")
+				continue
+			}
+
+			// turn word to lowercase
+			word = strings.ToLower(word)
+
+			wordList = append(wordList, word)
+		}
+	}
+	return wordList, emojiList
+}
+
+func saveModel(words []string, emojis []string) error {
+	// check that words contain something
+	if len(words) < 1 {
+		return errors.New("word list is empty")
+	}
+
+	// open model file for writing
+	programPath, err := os.Executable()
+
+	if err != nil {
+		return errors.New("Unable to find executable path: " + err.Error())
+	}
+
+	programPath, _ = filepath.Split(programPath)
+
+	// check if models folder exists, create if not
+	_, err = os.Stat(programPath + string(os.PathSeparator) + "models")
+
+	if os.IsNotExist(err) {
+		err := os.Mkdir(programPath+string(os.PathSeparator)+"models", 1775)
+		if err != nil {
+			return errors.New("Failed to create models directory at " + programPath + ": " + err.Error())
+		}
+	} else if err != nil {
+		return errors.New("Failed to read models folder at " + programPath + ": " + err.Error())
+	}
+
+	// check if model with same name already exists, create & open model file, finally write model to file
+
+	fileInfo, err := os.Stat(programPath + string(os.PathSeparator) + "models" + string(os.PathSeparator) + ModelName)
+	fmt.Println(fileInfo)
+
+	if os.IsNotExist(err) {
+		modelFile, err := os.OpenFile(programPath+string(os.PathSeparator)+"models"+string(os.PathSeparator)+ModelName, os.O_WRONLY|os.O_CREATE, 0664)
+		if err != nil {
+			return errors.New("Failed creating model file " + ModelName + ": " + err.Error())
+		}
+		enc := gob.NewEncoder(modelFile)
+		err = enc.Encode(WordModel{words, emojis})
+
+		if err != nil {
+			return errors.New("Error encoding data: " + err.Error())
+		}
+	} else if err != nil {
+		return errors.New("Failed to read file " + ModelName + ": " + err.Error())
+	} else {
+		// file already exists, ask if user wants to overwrite it
+		fmt.Println("Model " + ModelName + " already exists, overwrite? y/n")
+		reader := bufio.NewReader(os.Stdin)
+		resultChar, _, err := reader.ReadRune()
+
+		if err != nil {
+			return err
+		}
+
+		switch strings.ToLower(string(resultChar)) {
+		case "y":
+			modelFile, err := os.OpenFile(programPath+string(os.PathSeparator)+"models"+string(os.PathSeparator)+ModelName, os.O_TRUNC|os.O_WRONLY, 0664)
+			if err != nil {
+				return errors.New("Failed to create model file " + ModelName + ": " + err.Error())
+			}
+
+			enc := gob.NewEncoder(modelFile)
+			err = enc.Encode(WordModel{words, emojis})
+
+			if err != nil {
+				return errors.New("Error encoding data: " + err.Error())
+			}
+		case "n":
+			return errors.New("File " + ModelName + " already exists")
+		default:
+			return errors.New("invalid answer, only use y/n")
+		}
+	}
+
+	return nil
 }
