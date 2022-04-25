@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mb-14/gomarkov"
 	"io"
 	"log"
 	"net/url"
@@ -416,6 +417,12 @@ func sanitizeMessages(messages []MessagesCsv) ([]string, []string) {
 				continue
 			}
 
+			// word is empty, skip
+			if word == "" {
+				log.Println("Word is empty, skipping")
+				continue
+			}
+
 			// turn word to lowercase
 			word = strings.ToLower(word)
 
@@ -501,4 +508,39 @@ func saveModel(words []string, emojis []string) error {
 	}
 
 	return nil
+}
+
+func loadModel(modelFile *os.File) *WordModel {
+	var wordModel *WordModel
+
+	dec := gob.NewDecoder(modelFile)
+	err := dec.Decode(&wordModel)
+
+	if err != nil {
+		log.Fatalln("Failed to decode model " + modelFile.Name() + ": " + err.Error())
+	}
+
+	return wordModel
+}
+
+func generateWords(model *WordModel, amount *int) {
+	// create new chain
+	chain := gomarkov.NewChain(1)
+
+	// insert words to chain
+
+	chain.Add(model.Words)
+	//chain.Add(model.Emojis)
+
+	tokens := []string{gomarkov.StartToken}
+	for tokens[len(tokens)-1] != gomarkov.EndToken {
+		next, _ := chain.Generate(tokens[(len(tokens) - 1):])
+		tokens = append(tokens, next)
+	}
+	//fmt.Println(strings.Join(tokens[1:len(tokens)-1], " "))
+	wordsToInclude := make([]string, 0, *amount)
+	for i := 1; i <= *amount; i++ {
+		wordsToInclude = append(wordsToInclude, tokens[i])
+	}
+	fmt.Println(strings.Join(wordsToInclude, " "))
 }

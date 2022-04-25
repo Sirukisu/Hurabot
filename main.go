@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/akamensky/argparse"
 	"os"
+	"strconv"
 )
 
 func main() {
@@ -19,6 +20,21 @@ func main() {
 		Default:  nil,
 	})
 	modelCommandList := modelCommand.NewCommand("list", "List current models")
+
+	modelCommandGenerate := modelCommand.NewCommand("generate", "Generate random text from a model")
+	modelCommandGenerateModelArg := modelCommandGenerate.File("m", "model", os.O_RDONLY, 0440, &argparse.Options{
+		Required: true,
+		Validate: nil,
+		Help:     "Model file to use",
+		Default:  nil,
+	})
+	modelCommandGenerateCountArg := modelCommandGenerate.Int("w", "words", &argparse.Options{
+		Required: false,
+		Validate: nil,
+		Help:     "Amount of words to generate",
+		Default:  10,
+	})
+
 	modelCommandRemove := modelCommand.NewCommand("remove", "Remove a model")
 
 	// bot commands
@@ -55,6 +71,10 @@ func main() {
 
 	} else if modelCommandRemove.Happened() {
 
+	} else if modelCommandGenerate.Happened() {
+		wordModel := loadModel(modelCommandGenerateModelArg)
+		fmt.Println("Loaded " + strconv.Itoa(len(wordModel.Words)) + " words and " + strconv.Itoa(len(wordModel.Emojis)) + " emojis")
+		generateWords(wordModel, modelCommandGenerateCountArg)
 	}
 
 	// handle bot config commands
