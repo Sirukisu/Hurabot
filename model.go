@@ -49,8 +49,7 @@ type MessagesCsv struct {
 }
 
 type WordModel struct {
-	Words  []string
-	Emojis []string
+	Words []string
 }
 
 var DiscordGuilds = make([]DiscordGuild, 0)
@@ -333,12 +332,12 @@ func CreateModel(fileOrDirectory *os.File) {
 
 	// filter messages
 	log.Println("Now sanitizing messages and splitting words")
-	wordList, emojiList := sanitizeMessages(messagesParsed)
+	wordList := sanitizeMessages(messagesParsed)
 
 	// save model
 	log.Println("Word processing done, saving model to models/" + ModelName)
 
-	err = saveModel(wordList, emojiList)
+	err = saveModel(wordList)
 
 	if err != nil {
 		log.Fatalln(err)
@@ -387,10 +386,9 @@ func processMessagesCSV(csvFile *os.File) ([]MessagesCsv, error) {
 	return messages, nil
 }
 
-func sanitizeMessages(messages []MessagesCsv) ([]string, []string) {
+func sanitizeMessages(messages []MessagesCsv) []string {
 	// separate strings into words & emojis
 	wordList := make([]string, 0)
-	emojiList := make([]string, 0)
 
 	// loop through all messages, separate into words & emojis
 	for _, message := range messages {
@@ -402,12 +400,6 @@ func sanitizeMessages(messages []MessagesCsv) ([]string, []string) {
 
 			if err == nil {
 				log.Println("Word " + word + " is a URL, skipping")
-				continue
-			}
-
-			// check if word has a custom emoji, add to emoji list instead
-			if strings.HasPrefix(word, "<:") && strings.HasSuffix(word, ">") {
-				emojiList = append(emojiList, word)
 				continue
 			}
 
@@ -423,16 +415,22 @@ func sanitizeMessages(messages []MessagesCsv) ([]string, []string) {
 				continue
 			}
 
+			// word is a mention, skip
+			if strings.HasPrefix(word, "<@") && strings.HasSuffix(word, ">") {
+				log.Println("Word " + word + " is a mention, skipping")
+				continue
+			}
+
 			// turn word to lowercase
 			word = strings.ToLower(word)
 
 			wordList = append(wordList, word)
 		}
 	}
-	return wordList, emojiList
+	return wordList
 }
 
-func saveModel(words []string, emojis []string) error {
+func saveModel(words []string) error {
 	// check that words contain something
 	if len(words) < 1 {
 		return errors.New("word list is empty")
@@ -461,8 +459,7 @@ func saveModel(words []string, emojis []string) error {
 
 	// check if model with same name already exists, create & open model file, finally write model to file
 
-	fileInfo, err := os.Stat(programPath + string(os.PathSeparator) + "models" + string(os.PathSeparator) + ModelName)
-	fmt.Println(fileInfo)
+	_, err = os.Stat(programPath + string(os.PathSeparator) + "models" + string(os.PathSeparator) + ModelName)
 
 	if os.IsNotExist(err) {
 		modelFile, err := os.OpenFile(programPath+string(os.PathSeparator)+"models"+string(os.PathSeparator)+ModelName, os.O_WRONLY|os.O_CREATE, 0664)
@@ -470,7 +467,7 @@ func saveModel(words []string, emojis []string) error {
 			return errors.New("Failed creating model file " + ModelName + ": " + err.Error())
 		}
 		enc := gob.NewEncoder(modelFile)
-		err = enc.Encode(WordModel{words, emojis})
+		err = enc.Encode(WordModel{words})
 
 		if err != nil {
 			return errors.New("Error encoding data: " + err.Error())
@@ -495,7 +492,7 @@ func saveModel(words []string, emojis []string) error {
 			}
 
 			enc := gob.NewEncoder(modelFile)
-			err = enc.Encode(WordModel{words, emojis})
+			err = enc.Encode(WordModel{words})
 
 			if err != nil {
 				return errors.New("Error encoding data: " + err.Error())
@@ -528,19 +525,19 @@ func generateWords(model *WordModel, amount *int) {
 	chain := gomarkov.NewChain(1)
 
 	// insert words to chain
-
 	chain.Add(model.Words)
-	//chain.Add(model.Emojis)
 
-	tokens := []string{gomarkov.StartToken}
+	tokens := make([]string, 0, *amount)
+	tokens = append(tokens, gomarkov.StartToken)
 	for tokens[len(tokens)-1] != gomarkov.EndToken {
+		if len(tokens) >= *amount {
+			break
+		}
 		next, _ := chain.Generate(tokens[(len(tokens) - 1):])
 		tokens = append(tokens, next)
 	}
-	//fmt.Println(strings.Join(tokens[1:len(tokens)-1], " "))
-	wordsToInclude := make([]string, 0, *amount)
-	for i := 1; i <= *amount; i++ {
-		wordsToInclude = append(wordsToInclude, tokens[i])
-	}
-	fmt.Println(strings.Join(wordsToInclude, " "))
+
+	generatedText := strings.Join(tokens, " ")
+	_, generatedText, _ = strings.Cut(generatedText, "$ ")
+	fmt.Println(generatedText)
 }

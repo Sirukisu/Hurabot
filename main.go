@@ -12,6 +12,8 @@ func main() {
 
 	// model commands
 	modelCommand := parser.NewCommand("model", "manage bot word models")
+
+	// model creation command
 	modelCommandCreate := modelCommand.NewCommand("create", "create new model from discord messages")
 	modelCommandCreateArgs := modelCommandCreate.File("f", "file", os.O_RDONLY, 0660, &argparse.Options{
 		Required: true,
@@ -21,6 +23,7 @@ func main() {
 	})
 	modelCommandList := modelCommand.NewCommand("list", "List current models")
 
+	// model text generation command
 	modelCommandGenerate := modelCommand.NewCommand("generate", "Generate random text from a model")
 	modelCommandGenerateModelArg := modelCommandGenerate.File("m", "model", os.O_RDONLY, 0440, &argparse.Options{
 		Required: true,
@@ -73,7 +76,7 @@ func main() {
 
 	} else if modelCommandGenerate.Happened() {
 		wordModel := loadModel(modelCommandGenerateModelArg)
-		fmt.Println("Loaded " + strconv.Itoa(len(wordModel.Words)) + " words and " + strconv.Itoa(len(wordModel.Emojis)) + " emojis")
+		fmt.Println("Loaded " + strconv.Itoa(len(wordModel.Words)) + " words ")
 		generateWords(wordModel, modelCommandGenerateCountArg)
 	}
 
