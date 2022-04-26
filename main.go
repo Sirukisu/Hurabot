@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/akamensky/argparse"
+	"math/rand"
 	"os"
 	"strconv"
 )
@@ -77,6 +78,14 @@ func main() {
 	} else if modelCommandGenerate.Happened() {
 		wordModel := loadModel(modelCommandGenerateModelArg)
 		fmt.Println("Loaded " + strconv.Itoa(len(wordModel.Words)) + " words ")
+		// shuffle the first word for more randomness
+		randomPosition := rand.Intn(len(wordModel.Words))
+		firstWord := wordModel.Words[0]
+		randomWord := wordModel.Words[randomPosition]
+
+		wordModel.Words[0] = randomWord
+		wordModel.Words[randomPosition] = firstWord
+
 		generateWords(wordModel, modelCommandGenerateCountArg)
 	}
 
