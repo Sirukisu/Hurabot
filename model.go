@@ -7,14 +7,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/dixonwille/skywalker"
 	"github.com/mb-14/gomarkov"
 	"io"
 	"log"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type DiscordMessagesChannelInfoFromFile struct {
@@ -52,6 +55,25 @@ type WordModel struct {
 	Words []string
 }
 
+type ChannelWorker struct {
+	*sync.Mutex
+	found []string
+}
+
+func (ew *ChannelWorker) Work(path string) {
+	ew.Lock()
+	defer ew.Unlock()
+
+	file, err := os.Stat(path)
+	if err != nil {
+		log.Println("Failed reading file " + path + ": " + err.Error())
+	}
+
+	if file.Name() == "channel.json" {
+		ew.found = append(ew.found, path)
+	}
+}
+
 var DiscordGuilds = make([]DiscordGuild, 0)
 var ModelName string
 
@@ -68,15 +90,8 @@ func CreateModelInit(directory *os.File) {
 		return
 	}
 
-	directoryContents, err := directory.ReadDir(0)
-
-	if err != nil {
-		fmt.Println("Failed to read contents of " + directory.Name() + ": " + err.Error())
-		return
-	}
-
 	// just load everything from the directory & subdirectories
-	loadedChannels := loadChannelInfoFromMessages(directory, directoryContents)
+	loadedChannels := loadChannelInfoFromMessages(directory)
 
 	// make list of guilds & check for duplicates
 	listOfGuilds := make([]DiscordMessagesChannelGuildInfoFromFile, 0)
@@ -98,6 +113,10 @@ func CreateModelInit(directory *os.File) {
 
 		if err != nil {
 			guildId = 0
+		}
+
+		if guild.Name == "" {
+			continue
 		}
 
 		newGuild := DiscordGuild{
@@ -126,13 +145,39 @@ func CreateModelInit(directory *os.File) {
 		DiscordGuilds = append(DiscordGuilds, newGuild)
 	}
 
-	// fix direct messages
+	// fix direct messages & groups
+	groupMessagesGuild := DiscordGuild{
+		Id:       1,
+		Name:     "Groups",
+		Channels: nil,
+	}
+
+	// check for groups which have a type value of 3
+	for _, channel := range loadedChannels {
+		if channel.Type == 3 {
+			newGroupId, err := strconv.Atoi(channel.Id)
+
+			if err != nil {
+				log.Println("Failed to parse channel " + channel.Name + " ID: " + err.Error())
+			}
+
+			newGroup := DiscordChannel{
+				Id:      newGroupId,
+				Name:    channel.Name,
+				Enabled: false,
+			}
+
+			groupMessagesGuild.Channels = append(groupMessagesGuild.Channels, newGroup)
+		}
+	}
+
 	directMessagesGuild := DiscordGuild{
 		Id:       0,
 		Name:     "Direct Messages",
 		Channels: nil,
 	}
 
+	// find the direct message names from index.json file
 	index, err := os.ReadFile(directory.Name() + string(os.PathSeparator) + "index.json")
 
 	if err != nil {
@@ -163,7 +208,13 @@ func CreateModelInit(directory *os.File) {
 		}
 	}
 
-	DiscordGuilds = append(DiscordGuilds, directMessagesGuild)
+	// check if the guilds have channels, append if they do
+	if groupMessagesGuild.Channels != nil {
+		DiscordGuilds = append(DiscordGuilds, groupMessagesGuild)
+	}
+	if directMessagesGuild.Channels != nil {
+		DiscordGuilds = append(DiscordGuilds, directMessagesGuild)
+	}
 
 	// start GUI for selecting enabled channels
 	DiscordChannelSelectionGUI()
@@ -197,50 +248,41 @@ func CreateModelInit(directory *os.File) {
 	}
 }
 
-func loadChannelInfoFromMessages(directory *os.File, directoryContents []os.DirEntry) []DiscordMessagesChannelInfoFromFile {
-	loadedChannels := make([]DiscordMessagesChannelInfoFromFile, 0)
+func loadChannelInfoFromMessages(directory *os.File) []DiscordMessagesChannelInfoFromFile {
+	channelInfo := make([]DiscordMessagesChannelInfoFromFile, 0)
+	ew := new(ChannelWorker)
+	ew.Mutex = new(sync.Mutex)
 
-	for _, dc := range directoryContents {
-		os.Chdir(directory.Name() + string(os.PathSeparator) + dc.Name())
-		wd, err := os.Getwd()
+	sw := skywalker.New(directory.Name(), ew)
+	sw.ExtListType = skywalker.LTWhitelist
+	sw.ExtList = []string{".json"}
+	sw.FilesOnly = true
+
+	err := sw.Walk()
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	sort.Sort(sort.StringSlice(ew.found))
+	for _, f := range ew.found {
+		channelData, err := os.ReadFile(f)
 
 		if err != nil {
-			fmt.Println(err)
+			log.Println("Failed to read file " + f + ": " + err.Error())
 			continue
 		}
+		newChannel := DiscordMessagesChannelInfoFromFile{}
 
-		subDirectoryContents, _ := os.ReadDir(wd)
-		for _, sdc := range subDirectoryContents {
-			file, err := sdc.Info()
+		if err = json.Unmarshal(channelData, &newChannel); err != nil {
+			log.Println("Failed to decode file " + f + ": " + err.Error())
+		}
 
-			if err != nil {
-				fmt.Println(err)
-			}
-
-			if file.Name() == "channel.json" {
-				fileContent, err := os.ReadFile(file.Name())
-
-				if err != nil {
-					fmt.Println(err)
-				}
-
-				newChannel := DiscordMessagesChannelInfoFromFile{}
-
-				err = json.Unmarshal(fileContent, &newChannel)
-
-				if err != nil {
-					fmt.Println(err)
-				}
-
-				if newChannel.Name != "" {
-					loadedChannels = append(loadedChannels, newChannel)
-				} else {
-					continue
-				}
-			}
+		if newChannel.Name != "" {
+			channelInfo = append(channelInfo, newChannel)
 		}
 	}
-	return loadedChannels
+
+	return channelInfo
 }
 
 func checkForDuplicateGuilds(guilds []DiscordMessagesChannelGuildInfoFromFile) []DiscordMessagesChannelGuildInfoFromFile {
