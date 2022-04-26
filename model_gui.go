@@ -33,6 +33,9 @@ func DiscordChannelSelectionGUI() {
 	if err := g.SetKeybinding("guilds", gocui.KeyEnter, gocui.ModNone, selectGuild); err != nil {
 		log.Panicln(err)
 	}
+	if err := g.SetKeybinding("guilds", gocui.KeySpace, gocui.ModNone, changeGuildEnabled); err != nil {
+		log.Panicln(err)
+	}
 	if err := g.SetKeybinding("channels", gocui.KeyEnter, gocui.ModNone, closeGuild); err != nil {
 		log.Panicln(err)
 	}
@@ -67,15 +70,38 @@ func layout(g *gocui.Gui) error {
 		v.SelBgColor = gocui.ColorCyan
 		v.SelFgColor = gocui.ColorBlack
 		v.Title = "Select what channels to include"
-		for i := range DiscordGuilds {
-			fmt.Fprintln(v, DiscordGuilds[i].Name)
-		}
+
+		drawGuilds(v)
 		if _, err := g.SetCurrentView("guilds"); err != nil {
 			return err
 		}
 	}
 	return nil
 }
+
+func drawGuilds(v *gocui.View) error {
+	v.Clear()
+
+	for i := range DiscordGuilds {
+		enabledCount := 0
+
+		for _, channel := range DiscordGuilds[i].Channels {
+			if channel.Enabled == true {
+				enabledCount++
+			}
+		}
+		if enabledCount == len(DiscordGuilds[i].Channels) {
+			fmt.Fprintln(v, "[X] "+DiscordGuilds[i].Name)
+		} else if enabledCount > 0 && enabledCount < len(DiscordGuilds[i].Channels) {
+			fmt.Fprintln(v, "[*] "+DiscordGuilds[i].Name)
+		} else {
+			fmt.Fprintln(v, "[ ] "+DiscordGuilds[i].Name)
+		}
+
+	}
+	return nil
+}
+
 func quit(_ *gocui.Gui, _ *gocui.View) error {
 	return gocui.ErrQuit
 }
@@ -166,6 +192,16 @@ func closeGuild(g *gocui.Gui, _ *gocui.View) error {
 	if err := g.DeleteView("channels"); err != nil {
 		return err
 	}
+
+	g.Update(func(g *gocui.Gui) error {
+		guildsView, err := g.View("guilds")
+		if err != nil {
+			return err
+		}
+		drawGuilds(guildsView)
+		return nil
+	})
+
 	if _, err := g.SetCurrentView("guilds"); err != nil {
 		return err
 	}
@@ -188,21 +224,59 @@ func changeChannelEnabled(g *gocui.Gui, v *gocui.View) error {
 
 	g.Update(func(g *gocui.Gui) error {
 		closeGuild(g, v)
-		view, err := g.View("guilds")
+		guildsView, err := g.View("guilds")
 		if err != nil {
 			return err
 		}
-		view.SetOrigin(0, GuildSelectedOPos)
-		view.SetCursor(0, GuildSelectedCPos)
+		guildsView.SetOrigin(0, GuildSelectedOPos)
+		guildsView.SetCursor(0, GuildSelectedCPos)
 
-		selectGuild(g, view)
-		view2, err := g.View("channels")
+		selectGuild(g, guildsView)
+		channelsView, err := g.View("channels")
 		if err != nil {
 			return err
 		}
-		view2.SetOrigin(0, oy)
-		view2.SetCursor(0, cy)
+		channelsView.SetOrigin(0, oy)
+		channelsView.SetCursor(0, cy)
 
+		return nil
+	})
+	return nil
+}
+
+func changeGuildEnabled(g *gocui.Gui, v *gocui.View) error {
+	_, cy := v.Cursor()
+	_, oy := v.Origin()
+
+	guildInfo := &DiscordGuilds[oy+cy]
+
+	enabledCount := 0
+
+	for i, _ := range guildInfo.Channels {
+		channelInfo := &guildInfo.Channels[i]
+		if channelInfo.Enabled == true {
+			enabledCount++
+		}
+	}
+
+	if enabledCount == len(guildInfo.Channels) {
+		for i, _ := range guildInfo.Channels {
+			channelInfo := &guildInfo.Channels[i]
+			channelInfo.Enabled = false
+		}
+	} else {
+		for i, _ := range guildInfo.Channels {
+			channelInfo := &guildInfo.Channels[i]
+			channelInfo.Enabled = true
+		}
+	}
+
+	g.Update(func(g *gocui.Gui) error {
+		guildsView, err := g.View("guilds")
+		if err != nil {
+			return err
+		}
+		drawGuilds(guildsView)
 		return nil
 	})
 	return nil
