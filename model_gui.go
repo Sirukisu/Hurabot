@@ -62,7 +62,7 @@ func DiscordChannelSelectionGUI() {
 
 func layout(g *gocui.Gui) error {
 	maxX, maxY := g.Size()
-	if v, err := g.SetView("guilds", int(float32(maxX)*0.1), 0, int(float32(maxX)*0.9), int(float32(maxY)*0.8)); err != nil {
+	if v, err := g.SetView("guilds", int(float32(maxX)*0.05), 0, int(float32(maxX)*0.95), int(float32(maxY)*0.8)); err != nil {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
@@ -75,6 +75,12 @@ func layout(g *gocui.Gui) error {
 		if _, err := g.SetCurrentView("guilds"); err != nil {
 			return err
 		}
+	}
+	if v, err := g.SetView("helpBar", int(float32(maxX)*0.05), int(float32(maxY)*0.85), int(float32(maxX)*0.95), int(float32(maxY)*0.90)); err != nil {
+		if err != gocui.ErrUnknownView {
+			return err
+		}
+		fmt.Fprintln(v, "CTRL+C Quit the GUI | CTRL+D Confirm choices | Space Enable or disable guild/channel")
 	}
 	return nil
 }
