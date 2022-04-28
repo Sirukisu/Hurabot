@@ -21,37 +21,56 @@ func DiscordChannelSelectionGUI() {
 
 	g.SetManagerFunc(layout)
 
+	// keybinding for quiting the GUI
 	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
 		log.Panicln(err)
 	}
+	// keybinding for cursor down in the guilds view
 	if err := g.SetKeybinding("guilds", gocui.KeyArrowDown, gocui.ModNone, cursorDownGuilds); err != nil {
 		log.Panicln(err)
 	}
+	// keybinding for cursor up
 	if err := g.SetKeybinding("", gocui.KeyArrowUp, gocui.ModNone, cursorUp); err != nil {
 		log.Panicln(err)
 	}
+	// keybinding for selecting a guild & opening its channel view
 	if err := g.SetKeybinding("guilds", gocui.KeyEnter, gocui.ModNone, selectGuild); err != nil {
 		log.Panicln(err)
 	}
+	// keybinding for changing all of a guilds enabled channels
 	if err := g.SetKeybinding("guilds", gocui.KeySpace, gocui.ModNone, changeGuildEnabled); err != nil {
 		log.Panicln(err)
 	}
+	// keybinding for closing the channel view
 	if err := g.SetKeybinding("channels", gocui.KeyEnter, gocui.ModNone, closeGuild); err != nil {
 		log.Panicln(err)
 	}
+	// keybinding for cursor down in channels view
 	if err := g.SetKeybinding("channels", gocui.KeyArrowDown, gocui.ModNone, cursorDownChannels); err != nil {
 		log.Panicln(err)
 	}
+	// keybinding for changing a channels enabled status
 	if err := g.SetKeybinding("channels", gocui.KeySpace, gocui.ModNone, changeChannelEnabled); err != nil {
 		log.Panicln(err)
 	}
+	// keybinding for opening the model name box
 	if err := g.SetKeybinding("guilds", gocui.KeyCtrlD, gocui.ModNone, saveName); err != nil {
 		log.Panicln(err)
 	}
+	// keybinding for confirming the model name
 	if err := g.SetKeybinding("modelName", gocui.KeyEnter, gocui.ModNone, confirmName); err != nil {
 		log.Panicln(err)
 	}
-	if err := g.SetKeybinding("modelName", gocui.KeyCtrlD, gocui.ModNone, closeConfirm); err != nil {
+	// keybinding for closing the model name box
+	if err := g.SetKeybinding("modelName", gocui.KeyCtrlD, gocui.ModNone, closeSaveNameConfirm); err != nil {
+		log.Panicln(err)
+	}
+	// keybinding for confirming the model filename
+	if err := g.SetKeybinding("modelFileName", gocui.KeyEnter, gocui.ModNone, confirmFileName); err != nil {
+		log.Panicln(err)
+	}
+	// keybinding for closing the model filename box
+	if err := g.SetKeybinding("modelFileName", gocui.KeyCtrlD, gocui.ModNone, closeSaveFileNameConfirm); err != nil {
 		log.Panicln(err)
 	}
 
@@ -60,6 +79,7 @@ func DiscordChannelSelectionGUI() {
 	}
 }
 
+// main layout function
 func layout(g *gocui.Gui) error {
 	maxX, maxY := g.Size()
 	if v, err := g.SetView("guilds", int(float32(maxX)*0.05), 0, int(float32(maxX)*0.95), int(float32(maxY)*0.8)); err != nil {
@@ -85,6 +105,7 @@ func layout(g *gocui.Gui) error {
 	return nil
 }
 
+// function for drawing all the guilds and their enabled statuses
 func drawGuilds(v *gocui.View) error {
 	v.Clear()
 
@@ -108,10 +129,12 @@ func drawGuilds(v *gocui.View) error {
 	return nil
 }
 
+// function for quiting the GUI
 func quit(_ *gocui.Gui, _ *gocui.View) error {
 	return gocui.ErrQuit
 }
 
+// function for moving the cursor down in guilds view
 func cursorDownGuilds(_ *gocui.Gui, v *gocui.View) error {
 	if v != nil {
 		cx, cy := v.Cursor()
@@ -127,6 +150,7 @@ func cursorDownGuilds(_ *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
+// function for moving the cursor down in channels view
 func cursorDownChannels(_ *gocui.Gui, v *gocui.View) error {
 	if v != nil {
 		guildInfo := &DiscordGuilds[GuildSelected]
@@ -143,6 +167,7 @@ func cursorDownChannels(_ *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
+// function for moving the cursor up
 func cursorUp(_ *gocui.Gui, v *gocui.View) error {
 	if v != nil {
 		ox, oy := v.Origin()
@@ -156,6 +181,7 @@ func cursorUp(_ *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
+// function for opening the channels view for a guild
 func selectGuild(g *gocui.Gui, v *gocui.View) error {
 	_, cy := v.Cursor()
 	_, oy := v.Origin()
@@ -194,6 +220,7 @@ func selectGuild(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
+// function for closing the channels view
 func closeGuild(g *gocui.Gui, _ *gocui.View) error {
 	if err := g.DeleteView("channels"); err != nil {
 		return err
@@ -214,6 +241,7 @@ func closeGuild(g *gocui.Gui, _ *gocui.View) error {
 	return nil
 }
 
+// function for changing a channel's enabled status
 func changeChannelEnabled(g *gocui.Gui, v *gocui.View) error {
 	_, cy := v.Cursor()
 	_, oy := v.Origin()
@@ -250,6 +278,7 @@ func changeChannelEnabled(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
+// function for changing a guilds enabled status
 func changeGuildEnabled(g *gocui.Gui, v *gocui.View) error {
 	_, cy := v.Cursor()
 	_, oy := v.Origin()
@@ -288,6 +317,7 @@ func changeGuildEnabled(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
+// function for opening the model name box
 func saveName(g *gocui.Gui, _ *gocui.View) error {
 	maxX, maxY := g.Size()
 
@@ -306,7 +336,8 @@ func saveName(g *gocui.Gui, _ *gocui.View) error {
 	return nil
 }
 
-func closeConfirm(g *gocui.Gui, _ *gocui.View) error {
+// function for closing the model name box
+func closeSaveNameConfirm(g *gocui.Gui, _ *gocui.View) error {
 	if err := g.DeleteView("modelName"); err != nil {
 		return err
 	}
@@ -316,7 +347,8 @@ func closeConfirm(g *gocui.Gui, _ *gocui.View) error {
 	return nil
 }
 
-func confirmName(_ *gocui.Gui, v *gocui.View) error {
+// function for confirming the name of the model
+func confirmName(g *gocui.Gui, v *gocui.View) error {
 	var nameContent string
 	var err error
 	_, cy := v.Cursor()
@@ -326,6 +358,53 @@ func confirmName(_ *gocui.Gui, v *gocui.View) error {
 	}
 
 	ModelName = nameContent
+
+	closeSaveNameConfirm(g, v)
+	saveFileName(g, v)
+	return nil
+}
+
+// function for opening the model filename box
+func saveFileName(g *gocui.Gui, _ *gocui.View) error {
+	maxX, maxY := g.Size()
+
+	if v, err := g.SetView("modelFileName", maxX/2-30, maxY/2, maxX/2+30, maxY/2+2); err != nil {
+		if err != gocui.ErrUnknownView {
+			return err
+		}
+
+		v.Title = "Enter filename for model"
+		v.Editable = true
+
+		if _, err := g.SetCurrentView("modelFileName"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// function for closing the model filename box
+func closeSaveFileNameConfirm(g *gocui.Gui, _ *gocui.View) error {
+	if err := g.DeleteView("modelFileName"); err != nil {
+		return err
+	}
+	if _, err := g.SetCurrentView("guilds"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// function for confirming the model filename
+func confirmFileName(_ *gocui.Gui, v *gocui.View) error {
+	var fileNameContent string
+	var err error
+	_, cy := v.Cursor()
+
+	if fileNameContent, err = v.Line(cy); err != nil {
+		fileNameContent = "model.gob"
+	}
+
+	ModelFileName = fileNameContent
 
 	return gocui.ErrQuit
 }
