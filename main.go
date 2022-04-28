@@ -53,13 +53,14 @@ func main() {
 	}
 
 	botCommandConfig := botCommand.NewCommand("config", "Manage bot config")
-	botCommandConfigFile := botCommandConfig.File("f", "config-file", os.O_RDWR|os.O_CREATE, 0660, botCommandConfigOptions)
+	botCommandConfigFile := botCommandConfig.File("c", "config-file", os.O_RDWR|os.O_CREATE, 0660, botCommandConfigOptions)
 
 	botCommandConfigShow := botCommandConfig.NewCommand("show", "Show config")
 	botCommandConfigEdit := botCommandConfig.NewCommand("edit", "Edit config file")
 	//botCommandConfigEditFile := botCommandConfigEdit.File("f", "config-file", os.O_RDWR, 0660, botCommandConfigOptions)
 
-	//botCommandRun := botCommand.NewCommand("run", "Run the bot")
+	botCommandRun := botCommand.NewCommand("run", "Run the bot")
+	botCommandRunConfigArg := botCommandRun.File("c", "config-file", os.O_RDONLY, 0660, botCommandConfigOptions)
 
 	err := parser.Parse(os.Args)
 
@@ -76,8 +77,8 @@ func main() {
 	} else if modelCommandRemove.Happened() {
 
 	} else if modelCommandGenerate.Happened() {
-		wordModel := loadModel(modelCommandGenerateModelArg)
-		fmt.Println("Loaded " + strconv.Itoa(len(wordModel.Words)) + " words ")
+		wordModel := LoadModel(modelCommandGenerateModelArg)
+		fmt.Println("Loaded " + strconv.Itoa(len(wordModel.Words)) + " words  from model " + wordModel.Name)
 		// shuffle the first word for more randomness
 		randomPosition := rand.Intn(len(wordModel.Words))
 		firstWord := wordModel.Words[0]
@@ -86,13 +87,23 @@ func main() {
 		wordModel.Words[0] = randomWord
 		wordModel.Words[randomPosition] = firstWord
 
-		generateWords(wordModel, modelCommandGenerateCountArg)
+		generatedText := GenerateWords(wordModel, modelCommandGenerateCountArg)
+		fmt.Println(generatedText)
 	}
 
-	// handle bot config commands
+	// handle bot commands
 	if botCommandConfigShow.Happened() {
 		BotShowConfig(botCommandConfigFile)
 	} else if botCommandConfigEdit.Happened() {
 		//EditConfig(LoadConfig(botCommandConfigFile))
+	} else if botCommandRun.Happened() {
+		if botCommandRunConfigArg == nil {
+			fmt.Println("Failed to find the config file")
+			return
+		}
+		botConfig := LoadConfig(botCommandRunConfigArg)
+		if err := RunBot(botConfig); err != nil {
+			fmt.Println(err)
+		}
 	}
 }
