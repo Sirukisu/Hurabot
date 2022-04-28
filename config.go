@@ -9,17 +9,25 @@ import (
 	"strings"
 )
 
+// MainBotConfig contains configuration of the bot
 type MainBotConfig struct {
+	// Discord authentication token
 	AuthenticationToken string
-	CommandPrefix       string
-	GuildID             string
-	ModelToUse          string
-	LogDir              string
-	LogLevel            string
+	// Guild ID to register commands
+	GuildID string
+	// Folder where models are stored
+	ModelFolder string
+	// List of models to use if we don't want everything in ModelFolder
+	ModelsToUse []string
+	// Logging directory
+	LogDir string
+	// Logging level
+	LogLevel string
 }
 
-func LoadConfig(configFile *os.File) MainBotConfig {
-	var botConfig MainBotConfig
+// LoadConfig loads the MainBotConfig from an os.File
+func LoadConfig(configFile *os.File) *MainBotConfig {
+	var botConfig *MainBotConfig
 	configFileContent, err := os.ReadFile(configFile.Name())
 
 	if err != nil {
@@ -41,13 +49,20 @@ func LoadConfig(configFile *os.File) MainBotConfig {
 	return botConfig
 }
 
-func CreateEmptyConfig(configFile *os.File) MainBotConfig {
+// CreateEmptyConfig creates a new MainBotConfig and writes it to an os.File
+func CreateEmptyConfig(configFile *os.File) *MainBotConfig {
+	wd, err := os.Getwd()
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	botConfig := MainBotConfig{
 		AuthenticationToken: "",
-		CommandPrefix:       "",
 		GuildID:             "",
-		ModelToUse:          "",
-		LogDir:              "/log/",
+		ModelFolder:         wd + string(os.PathSeparator) + "models" + string(os.PathSeparator),
+		ModelsToUse:         make([]string, 0),
+		LogDir:              wd + string(os.PathSeparator) + "logs" + string(os.PathSeparator),
 		LogLevel:            "default",
 	}
 
@@ -78,7 +93,7 @@ func CreateEmptyConfig(configFile *os.File) MainBotConfig {
 	}
 
 	fmt.Println("Wrote a new config to " + configFile.Name())
-	return botConfig
+	return &botConfig
 }
 
 /*func EditConfig(config MainBotConfig) MainBotConfig {
