@@ -67,6 +67,7 @@ func main() {
 	if err != nil {
 		fmt.Println("Error: " + err.Error())
 		fmt.Println("Type -h for usage info")
+		return
 	}
 
 	// handle model commands
@@ -97,10 +98,6 @@ func main() {
 	} else if botCommandConfigEdit.Happened() {
 		//EditConfig(LoadConfig(botCommandConfigFile))
 	} else if botCommandRun.Happened() {
-		if botCommandRunConfigArg == nil {
-			fmt.Println("Failed to find the config file")
-			return
-		}
 		botConfig := LoadConfig(botCommandRunConfigArg)
 		if err := RunBot(botConfig); err != nil {
 			fmt.Println(err)
