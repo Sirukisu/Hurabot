@@ -622,7 +622,7 @@ func GenerateWords(model *WordModel, amount *int) string {
 	tokens := make([]string, 0, *amount)
 	tokens = append(tokens, gomarkov.StartToken)
 	for tokens[len(tokens)-1] != gomarkov.EndToken {
-		if len(tokens) >= *amount {
+		if len(tokens) >= *amount+1 {
 			break
 		}
 		next, _ := chain.Generate(tokens[(len(tokens) - 1):])
