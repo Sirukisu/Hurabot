@@ -243,7 +243,7 @@ func openLog(config *MainBotConfig) (*os.File, error) {
 	_, err := os.Stat(config.LogDir)
 
 	if os.IsNotExist(err) {
-		err := os.Mkdir(config.LogDir, 1775)
+		err := os.Mkdir(config.LogDir, 0775)
 		if err != nil {
 			return nil, errors.New("failed to create log directory " + config.LogDir + ": " + err.Error())
 		}

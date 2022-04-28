@@ -539,7 +539,7 @@ func SaveModel(words []string) error {
 	_, err = os.Stat(programPath + string(os.PathSeparator) + "models")
 
 	if os.IsNotExist(err) {
-		err := os.Mkdir(programPath+string(os.PathSeparator)+"models", 1775)
+		err := os.Mkdir(programPath+string(os.PathSeparator)+"models", 0770)
 		if err != nil {
 			return errors.New("Failed to create models directory at " + programPath + ": " + err.Error())
 		}
