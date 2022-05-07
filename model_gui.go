@@ -10,6 +10,7 @@ var GuildSelected int
 var GuildSelectedCPos int
 var GuildSelectedOPos int
 
+// DiscordChannelSelectionGUI GUI for selecting what channels to include in model creation
 func DiscordChannelSelectionGUI() {
 	g, err := gocui.NewGui(gocui.OutputNormal)
 	if err != nil {
@@ -19,10 +20,10 @@ func DiscordChannelSelectionGUI() {
 
 	g.Cursor = true
 
-	g.SetManagerFunc(layout)
+	g.SetManagerFunc(discordChannelSelectionLayout)
 
 	// keybinding for quiting the GUI
-	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
+	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, gocuiQuit); err != nil {
 		log.Panicln(err)
 	}
 	// keybinding for cursor down in the guilds view
@@ -54,7 +55,7 @@ func DiscordChannelSelectionGUI() {
 		log.Panicln(err)
 	}
 	// keybinding for opening the model name box
-	if err := g.SetKeybinding("guilds", gocui.KeyCtrlD, gocui.ModNone, saveName); err != nil {
+	if err := g.SetKeybinding("guilds", gocui.KeyCtrlS, gocui.ModNone, saveName); err != nil {
 		log.Panicln(err)
 	}
 	// keybinding for confirming the model name
@@ -79,8 +80,8 @@ func DiscordChannelSelectionGUI() {
 	}
 }
 
-// main layout function
-func layout(g *gocui.Gui) error {
+// Main layout function for model GUI
+func discordChannelSelectionLayout(g *gocui.Gui) error {
 	maxX, maxY := g.Size()
 	if v, err := g.SetView("guilds", int(float32(maxX)*0.05), 0, int(float32(maxX)*0.95), int(float32(maxY)*0.8)); err != nil {
 		if err != gocui.ErrUnknownView {
@@ -105,7 +106,7 @@ func layout(g *gocui.Gui) error {
 	return nil
 }
 
-// function for drawing all the guilds and their enabled statuses
+// Function for drawing all the guilds and their enabled statuses
 func drawGuilds(v *gocui.View) error {
 	v.Clear()
 
@@ -129,12 +130,12 @@ func drawGuilds(v *gocui.View) error {
 	return nil
 }
 
-// function for quiting the GUI
-func quit(_ *gocui.Gui, _ *gocui.View) error {
+// Function for quiting the GUI
+func gocuiQuit(_ *gocui.Gui, _ *gocui.View) error {
 	return gocui.ErrQuit
 }
 
-// function for moving the cursor down in guilds view
+// Function for moving the cursor down in guilds view
 func cursorDownGuilds(_ *gocui.Gui, v *gocui.View) error {
 	if v != nil {
 		cx, cy := v.Cursor()
@@ -150,7 +151,7 @@ func cursorDownGuilds(_ *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
-// function for moving the cursor down in channels view
+// Function for moving the cursor down in channels view
 func cursorDownChannels(_ *gocui.Gui, v *gocui.View) error {
 	if v != nil {
 		guildInfo := &DiscordGuilds[GuildSelected]
@@ -167,7 +168,7 @@ func cursorDownChannels(_ *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
-// function for moving the cursor up
+// Function for moving the cursor up
 func cursorUp(_ *gocui.Gui, v *gocui.View) error {
 	if v != nil {
 		ox, oy := v.Origin()
@@ -181,7 +182,7 @@ func cursorUp(_ *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
-// function for opening the channels view for a guild
+// Function for opening the channels view for a guild
 func selectGuild(g *gocui.Gui, v *gocui.View) error {
 	_, cy := v.Cursor()
 	_, oy := v.Origin()
@@ -220,7 +221,7 @@ func selectGuild(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
-// function for closing the channels view
+// Function for closing the channels view
 func closeGuild(g *gocui.Gui, _ *gocui.View) error {
 	if err := g.DeleteView("channels"); err != nil {
 		return err
@@ -241,7 +242,7 @@ func closeGuild(g *gocui.Gui, _ *gocui.View) error {
 	return nil
 }
 
-// function for changing a channel's enabled status
+// Function for changing a channel's enabled status
 func changeChannelEnabled(g *gocui.Gui, v *gocui.View) error {
 	_, cy := v.Cursor()
 	_, oy := v.Origin()
@@ -278,7 +279,7 @@ func changeChannelEnabled(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
-// function for changing a guilds enabled status
+// Function for changing a guilds enabled status
 func changeGuildEnabled(g *gocui.Gui, v *gocui.View) error {
 	_, cy := v.Cursor()
 	_, oy := v.Origin()
@@ -317,7 +318,7 @@ func changeGuildEnabled(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
-// function for opening the model name box
+// Function for opening the model name box
 func saveName(g *gocui.Gui, _ *gocui.View) error {
 	maxX, maxY := g.Size()
 
@@ -336,7 +337,7 @@ func saveName(g *gocui.Gui, _ *gocui.View) error {
 	return nil
 }
 
-// function for closing the model name box
+// Function for closing the model name box
 func closeSaveNameConfirm(g *gocui.Gui, _ *gocui.View) error {
 	if err := g.DeleteView("modelName"); err != nil {
 		return err
@@ -347,7 +348,7 @@ func closeSaveNameConfirm(g *gocui.Gui, _ *gocui.View) error {
 	return nil
 }
 
-// function for confirming the name of the model
+// Function for confirming the name of the model
 func confirmName(g *gocui.Gui, v *gocui.View) error {
 	var nameContent string
 	var err error
@@ -364,7 +365,7 @@ func confirmName(g *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
-// function for opening the model filename box
+// Function for opening the model filename box
 func saveFileName(g *gocui.Gui, _ *gocui.View) error {
 	maxX, maxY := g.Size()
 
@@ -383,7 +384,7 @@ func saveFileName(g *gocui.Gui, _ *gocui.View) error {
 	return nil
 }
 
-// function for closing the model filename box
+// Function for closing the model filename box
 func closeSaveFileNameConfirm(g *gocui.Gui, _ *gocui.View) error {
 	if err := g.DeleteView("modelFileName"); err != nil {
 		return err
@@ -394,7 +395,7 @@ func closeSaveFileNameConfirm(g *gocui.Gui, _ *gocui.View) error {
 	return nil
 }
 
-// function for confirming the model filename
+// Function for confirming the model filename
 func confirmFileName(_ *gocui.Gui, v *gocui.View) error {
 	var fileNameContent string
 	var err error
