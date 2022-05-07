@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	parser := argparse.NewParser("Hurabotti", "Botin tynkä")
+	parser := argparse.NewParser("Hurabot", "A Discord bot that uses Markov chains to generate random text from your messages")
 
 	// MODEL COMMANDS
 	modelCommand := parser.NewCommand("model", "manage bot word models")
