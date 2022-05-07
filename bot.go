@@ -109,30 +109,15 @@ var (
 	}
 )
 
-// BotShowConfig loads and displays the config settings from an os.File
-func BotShowConfig(configFile *os.File) {
-	// load the config
-	botConfig := LoadConfig(configFile)
-
-	// print info
-	fmt.Println("Config file: " + configFile.Name())
-	fmt.Println("Discord authentication token: " + botConfig.AuthenticationToken)
-	fmt.Println("Discord guild ID: " + botConfig.GuildID)
-	fmt.Println("Models folder: " + botConfig.ModelFolder)
-	fmt.Println("Model list to use: TODO")
-	fmt.Println("Log directory: " + botConfig.LogDir)
-	fmt.Println("Logging level: " + botConfig.LogLevel)
-}
-
 // RunBot runs the Discord bot
-func RunBot(config *MainBotConfig) error {
+func RunBot() error {
 	// check that authentication token is set
-	if config.AuthenticationToken == "" {
+	if LoadedConfig.AuthenticationToken == "" {
 		return errors.New("error starting bot: authentication token is empty")
 	}
 
 	// initialize the logger
-	logFile, err := openLog(config)
+	logFile, err := openLog(LoadedConfig)
 	if err != nil {
 		return errors.New("error starting bot: failed to open log file " + err.Error())
 	}
@@ -140,14 +125,14 @@ func RunBot(config *MainBotConfig) error {
 
 	// read the model directory contents & load the models found
 	// TODO individual file mode
-	modelDirectoryContents, err := os.ReadDir(config.ModelFolder)
+	modelDirectoryContents, err := os.ReadDir(LoadedConfig.ModelDirectory)
 
 	if err != nil {
-		return errors.New("Failed to read model folder " + config.ModelFolder + ": " + err.Error())
+		return errors.New("Failed to read model folder " + LoadedConfig.ModelDirectory + ": " + err.Error())
 	}
 
 	for _, file := range modelDirectoryContents {
-		modelFile, err := os.Open(config.ModelFolder + file.Name())
+		modelFile, err := os.Open(LoadedConfig.ModelDirectory + file.Name())
 		if err != nil {
 			return errors.New("Failed to open model " + file.Name() + ": " + err.Error())
 		}
@@ -177,13 +162,13 @@ func RunBot(config *MainBotConfig) error {
 
 	// initialize the bot
 	botPrintLog("Bot starting", logger)
-	bot, err := discordgo.New("Bot " + config.AuthenticationToken)
+	bot, err := discordgo.New("Bot " + LoadedConfig.AuthenticationToken)
 
 	if err != nil {
 		return errors.New("failed to create bot: " + err.Error())
 	}
 
-	fmt.Println("Adding handlers")
+	botPrintLog("Adding handlers", logger)
 	bot.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if h, ok := commandHandlers[i.ApplicationCommandData().Name]; ok {
 			h(s, i)
@@ -204,7 +189,7 @@ func RunBot(config *MainBotConfig) error {
 	botPrintLog("Adding commands...", logger)
 	registeredCommands := make([]*discordgo.ApplicationCommand, len(botCommands))
 	for i, v := range botCommands {
-		cmd, err := bot.ApplicationCommandCreate(bot.State.User.ID, config.GuildID, v)
+		cmd, err := bot.ApplicationCommandCreate(bot.State.User.ID, LoadedConfig.GuildID, v)
 		if err != nil {
 			botPrintLog("Cannot create command "+v.Name+": "+err.Error(), logger)
 		}
@@ -222,13 +207,13 @@ func RunBot(config *MainBotConfig) error {
 	// remove the commands & shut down
 	botPrintLog("Removing commands...", logger)
 	// // We need to fetch the commands, since deleting requires the command ID.
-	registeredCommands, err = bot.ApplicationCommands(bot.State.User.ID, config.GuildID)
+	registeredCommands, err = bot.ApplicationCommands(bot.State.User.ID, LoadedConfig.GuildID)
 	if err != nil {
 		logger.Fatalln("Could not fetch registered commands: " + err.Error())
 	}
 
 	for _, v := range registeredCommands {
-		err := bot.ApplicationCommandDelete(bot.State.User.ID, config.GuildID, v.ID)
+		err := bot.ApplicationCommandDelete(bot.State.User.ID, LoadedConfig.GuildID, v.ID)
 		if err != nil {
 			logger.Panicf("Cannot delete '%v' command: %v", v.Name, err)
 		}
