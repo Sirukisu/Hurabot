@@ -16,7 +16,7 @@ type MainBotConfig struct {
 	// Guild ID to register commands
 	GuildID string
 	// Folder where models are stored
-	ModelFolder string
+	ModelDirectory string
 	// List of models to use if we don't want everything in ModelFolder
 	ModelsToUse []string
 	// Logging directory
@@ -25,112 +25,121 @@ type MainBotConfig struct {
 	LogLevel string
 }
 
-// LoadConfig loads the MainBotConfig from an os.File
-func LoadConfig(configFile *os.File) *MainBotConfig {
-	var botConfig *MainBotConfig
+func (config MainBotConfig) createNewConfig() MainBotConfig {
+	wd, err := os.Getwd()
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	config.AuthenticationToken = ""
+	config.GuildID = ""
+	config.ModelDirectory = wd + string(os.PathSeparator) + "models" + string(os.PathSeparator)
+	config.ModelsToUse = make([]string, 0)
+	config.LogDir = wd + string(os.PathSeparator) + "logs" + string(os.PathSeparator)
+	config.LogLevel = "default"
+
+	return config
+}
+
+var LoadedConfig *MainBotConfig
+
+// ConfigLoadConfig loads the MainBotConfig from an os.File
+func ConfigLoadConfig(configFile *os.File) error {
+	//var botConfig *MainBotConfig
 	configFileContent, err := os.ReadFile(configFile.Name())
 
 	if err != nil {
-		log.Fatal("Error reading file " + configFile.Name() + ": " + err.Error())
+		return err
 	}
 
 	// check if file is empty = just created, make new config
 	if len(configFileContent) == 0 {
-		botConfig = CreateEmptyConfig(configFile)
-		return botConfig
+		ConfigCreateEmptyConfig(configFile)
+		os.Exit(0)
 	}
 
-	err = json.Unmarshal(configFileContent, &botConfig)
+	err = json.Unmarshal(configFileContent, &LoadedConfig)
 
 	if err != nil {
-		log.Fatal("Error reading parameters from " + configFile.Name() + ": " + err.Error())
+		return err
 	}
-
-	return botConfig
+	return nil
 }
 
-// CreateEmptyConfig creates a new MainBotConfig and writes it to an os.File
-func CreateEmptyConfig(configFile *os.File) *MainBotConfig {
-	wd, err := os.Getwd()
-
-	if err != nil {
-		fmt.Println(err)
+// ConfigShowConfig loads and displays the config settings from an os.File
+func ConfigShowConfig(configFile *os.File) {
+	// load the config
+	if err := ConfigLoadConfig(configFile); err != nil {
+		log.Fatalf("Failed to load config from %s: %s", configFile.Name(), err.Error())
 	}
 
-	botConfig := MainBotConfig{
-		AuthenticationToken: "",
-		GuildID:             "",
-		ModelFolder:         wd + string(os.PathSeparator) + "models" + string(os.PathSeparator),
-		ModelsToUse:         make([]string, 0),
-		LogDir:              wd + string(os.PathSeparator) + "logs" + string(os.PathSeparator),
-		LogLevel:            "default",
+	// print info
+	fmt.Println("Config file: " + configFile.Name())
+	fmt.Println("Discord authentication token: " + LoadedConfig.AuthenticationToken)
+	fmt.Println("Discord guild ID: " + LoadedConfig.GuildID)
+	fmt.Println("Models directory: " + LoadedConfig.ModelDirectory)
+	fmt.Printf("Models to use: (%d total)\n", len(LoadedConfig.ModelsToUse))
+	for i := range LoadedConfig.ModelsToUse {
+		fmt.Println(LoadedConfig.ModelsToUse[i])
 	}
+	fmt.Println("Log directory: " + LoadedConfig.LogDir)
+	fmt.Println("Logging level: " + LoadedConfig.LogLevel)
+}
+
+// ConfigCreateEmptyConfig creates a new MainBotConfig and writes it to an os.File
+func ConfigCreateEmptyConfig(configFile *os.File) {
+	botConfig := MainBotConfig{}
+	botConfig = botConfig.createNewConfig()
+	LoadedConfig = &botConfig
 
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("New config created, edit it? (y/n)")
-	resultChar, err := reader.ReadString('\n')
+	resultChar, _, err := reader.ReadRune()
 
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
-	resultChar = strings.ToLower(resultChar)
-
-	switch resultChar {
-	case "y":
-		//botConfig = EditConfig(botConfig)
+	if strings.ToLower(string(resultChar)) == "y" {
+		ConfigEditGUI(nil)
 	}
 
 	botConfigJson, err := json.MarshalIndent(botConfig, "", "\t")
 
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 
 	_, err = configFile.Write(botConfigJson)
 
 	if err != nil {
-		log.Fatal("Failed to write new config to " + configFile.Name() + ": " + err.Error())
+		log.Fatalln("Failed to write new config to " + configFile.Name() + ": " + err.Error())
 	}
 
 	fmt.Println("Wrote a new config to " + configFile.Name())
-	return &botConfig
 }
 
-/*func EditConfig(config MainBotConfig) MainBotConfig {
-	gui, err := gocui.NewGui(gocui.OutputNormal)
+func ConfigEdit(configFile *os.File) {
+
+	ConfigEditGUI(configFile)
+
+	botConfigJson, err := json.MarshalIndent(LoadedConfig, "", "\t")
 
 	if err != nil {
-		log.Panicln(err)
+		log.Fatalln(err)
 	}
 
-	defer gui.Close()
+	err = configFile.Truncate(0)
 
-	gui.SetManagerFunc(EditConfigLayout)
-
-	if err := gui.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
-		log.Panicln(err)
+	if err != nil {
+		log.Fatalln(err)
 	}
 
-	if err := gui.MainLoop(); err != nil && err != gocui.ErrQuit {
-		log.Panicln(err)
+	_, err = configFile.Write(botConfigJson)
+
+	if err != nil {
+		log.Fatalln("Failed to write new config to " + configFile.Name() + ": " + err.Error())
 	}
 
-	return config
+	fmt.Println("Edited config at " + configFile.Name())
 }
-
-func EditConfigLayout(gui *gocui.Gui) error {
-	maxX, maxY := gui.Size()
-
-	if v, err := gui.SetView("Edit config", maxX/3, maxY/3, maxX/3, maxY/3); err != nil {
-		if err != gocui.ErrUnknownView {
-			return err
-		}
-		fmt.Fprintln(v, "gui test")
-	}
-
-	return nil
-}
-
-func quit(gui *gocui.Gui, v *gocui.View) error {
-	return gocui.ErrQuit
-}*/
