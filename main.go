@@ -11,7 +11,7 @@ import (
 func main() {
 	parser := argparse.NewParser("Hurabotti", "Botin tynkä")
 
-	// model commands
+	// MODEL COMMANDS
 	modelCommand := parser.NewCommand("model", "manage bot word models")
 
 	// model creation command
@@ -39,28 +39,33 @@ func main() {
 		Default:  10,
 	})
 
+	// TODO model delete command, is it necessary?
 	modelCommandRemove := modelCommand.NewCommand("remove", "Remove a model")
 
-	// bot commands
-	botCommand := parser.NewCommand("bot", "bot options")
+	// CONFIG OPTIONS
+	configCommand := parser.NewCommand("config", "config options")
 
-	// bot config options
-	botCommandConfigOptions := &argparse.Options{
+	// config file options
+	configCommandFileOptions := &argparse.Options{
 		Required: false,
 		Validate: nil,
 		Help:     "Config file to use",
 		Default:  "config.json",
 	}
 
-	botCommandConfig := botCommand.NewCommand("config", "Manage bot config")
-	botCommandConfigFile := botCommandConfig.File("c", "config-file", os.O_RDWR|os.O_CREATE, 0660, botCommandConfigOptions)
+	configCommandConfigFile := configCommand.File("c", "config-file", os.O_RDWR|os.O_CREATE, 0660, configCommandFileOptions)
 
-	botCommandConfigShow := botCommandConfig.NewCommand("show", "Show config")
-	botCommandConfigEdit := botCommandConfig.NewCommand("edit", "Edit config file")
-	//botCommandConfigEditFile := botCommandConfigEdit.File("f", "config-file", os.O_RDWR, 0660, botCommandConfigOptions)
+	configCommandShow := configCommand.NewCommand("show", "Show config")
+	configCommandCreate := configCommand.NewCommand("create", "Create a blank config")
+	configCommandEdit := configCommand.NewCommand("edit", "Edit config file")
+
+	// BOT COMMANDS
+	botCommand := parser.NewCommand("bot", "bot options")
 
 	botCommandRun := botCommand.NewCommand("run", "Run the bot")
-	botCommandRunConfigArg := botCommandRun.File("c", "config-file", os.O_RDONLY, 0660, botCommandConfigOptions)
+	botCommandRunConfigArg := botCommandRun.File("c", "config-file", os.O_RDONLY, 0660, configCommandFileOptions)
+
+	// END OF ARGUMENTS
 
 	err := parser.Parse(os.Args)
 
@@ -73,11 +78,17 @@ func main() {
 	// handle model commands
 	if modelCommandCreate.Happened() {
 		CreateModelInit(modelCommandCreateArgs)
-	} else if modelCommandList.Happened() {
+	}
 
-	} else if modelCommandRemove.Happened() {
+	if modelCommandList.Happened() {
+		//TODO model command list
+	}
 
-	} else if modelCommandGenerate.Happened() {
+	if modelCommandRemove.Happened() {
+		//TODO model command remove
+	}
+
+	if modelCommandGenerate.Happened() {
 		wordModel := LoadModel(modelCommandGenerateModelArg)
 		fmt.Println("Loaded " + strconv.Itoa(len(wordModel.Words)) + " words  from model " + wordModel.Name)
 		// shuffle the first word for more randomness
@@ -92,15 +103,26 @@ func main() {
 		fmt.Println(generatedText)
 	}
 
+	// handle config commands
+	if configCommandShow.Happened() {
+		ConfigShowConfig(configCommandConfigFile)
+	}
+	if configCommandCreate.Happened() {
+		ConfigCreateEmptyConfig(configCommandConfigFile)
+	}
+	if configCommandEdit.Happened() {
+		ConfigEdit(configCommandConfigFile)
+	}
+
 	// handle bot commands
-	if botCommandConfigShow.Happened() {
-		BotShowConfig(botCommandConfigFile)
-	} else if botCommandConfigEdit.Happened() {
-		//EditConfig(LoadConfig(botCommandConfigFile))
-	} else if botCommandRun.Happened() {
-		botConfig := LoadConfig(botCommandRunConfigArg)
-		if err := RunBot(botConfig); err != nil {
+	if botCommandRun.Happened() {
+		if err := ConfigLoadConfig(botCommandRunConfigArg); err != nil {
+			fmt.Printf("Failed to load config from %s: %s", botCommandRunConfigArg.Name(), err.Error())
+			return
+		}
+		if err := RunBot(); err != nil {
 			fmt.Println(err)
+			return
 		}
 	}
 }
