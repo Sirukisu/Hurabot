@@ -5,6 +5,7 @@ import (
 	"github.com/jroimartin/gocui"
 	"log"
 	"os"
+	"strconv"
 )
 
 // ConfigEditGUI open GUI for editing configs
@@ -102,11 +103,12 @@ func drawOptions(v *gocui.View) error {
 		"Guild ID: %s\n"+
 		"Models directory: %s\n"+
 		"Models to use: %d total\n"+
+		"Maximum amount of words: %d\n"+
 		"Log directory: %s\n"+
 		"Log level: %s\n"+
 		"Save config",
 		LoadedConfig.AuthenticationToken, LoadedConfig.GuildID, LoadedConfig.ModelDirectory, len(LoadedConfig.ModelsToUse),
-		LoadedConfig.LogDir, LoadedConfig.LogLevel)
+		LoadedConfig.MaxWords, LoadedConfig.LogDir, LoadedConfig.LogLevel)
 
 	return nil
 }
@@ -249,8 +251,23 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 					return err
 				}
 			}
-		// open log directory edit view
 		case 4:
+			if v, err := g.SetView("editMaxWords", maxX/2-30, maxY/2, maxX/2+30, maxY/2+2); err != nil {
+				if err != gocui.ErrUnknownView {
+					return err
+				}
+
+				v.Title = "Edit Maximum Amount of Words"
+				v.Editable = true
+
+				fmt.Fprint(v, LoadedConfig.MaxWords)
+
+				if _, err := g.SetCurrentView("editMaxWords"); err != nil {
+					return err
+				}
+			}
+		// open log directory edit view
+		case 5:
 			if v, err := g.SetView("editLogDirectory", maxX/2-30, maxY/2, maxX/2+30, maxY/2+2); err != nil {
 				if err != gocui.ErrUnknownView {
 					return err
@@ -266,7 +283,7 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 				}
 			}
 		// open log level edit view
-		case 5:
+		case 6:
 			if v, err := g.SetView("editLogLevel", maxX/2-30, maxY/2, maxX/2+30, maxY/2+3); err != nil {
 				if err != gocui.ErrUnknownView {
 					return err
@@ -285,7 +302,7 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 				}
 			}
 		// quit the GUI & save
-		case 6:
+		case 7:
 			return gocui.ErrQuit
 		}
 		return nil
@@ -375,6 +392,39 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 	case "editModelsToUse":
 
 		if err := g.DeleteView("editModelsToUse"); err != nil {
+			return err
+		}
+		if _, err := g.SetCurrentView("configOptions"); err != nil {
+			return err
+		}
+
+		g.Update(func(g *gocui.Gui) error {
+			configOptionsView, err := g.View("configOptions")
+			if err != nil {
+				return err
+			}
+			drawOptions(configOptionsView)
+			return nil
+		})
+
+		return nil
+
+	case "editMaxWords":
+		if option, err := v.Line(cy); err != nil {
+			v.Clear()
+			fmt.Fprint(v, "Invalid option: "+err.Error())
+			return nil
+		} else {
+			maxWords, err := strconv.Atoi(option)
+			if err != nil {
+				v.Clear()
+				fmt.Fprint(v, "Invalid integer: "+err.Error())
+				return nil
+			}
+			LoadedConfig.MaxWords = maxWords
+		}
+
+		if err := g.DeleteView("editMaxWords"); err != nil {
 			return err
 		}
 		if _, err := g.SetCurrentView("configOptions"); err != nil {

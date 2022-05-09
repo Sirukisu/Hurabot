@@ -19,6 +19,8 @@ type MainBotConfig struct {
 	ModelDirectory string
 	// List of models to use if we don't want everything in ModelFolder
 	ModelsToUse []string
+	// Maximum amount of words that can be generated with the Discord bot
+	MaxWords int
 	// Logging directory
 	LogDir string
 	// Logging level
@@ -36,6 +38,7 @@ func (config MainBotConfig) createNewConfig() MainBotConfig {
 	config.GuildID = ""
 	config.ModelDirectory = wd + string(os.PathSeparator) + "models" + string(os.PathSeparator)
 	config.ModelsToUse = make([]string, 0)
+	config.MaxWords = 200
 	config.LogDir = wd + string(os.PathSeparator) + "logs" + string(os.PathSeparator)
 	config.LogLevel = "default"
 
@@ -79,10 +82,11 @@ func ConfigShowConfig(configFile *os.File) {
 	fmt.Println("Discord authentication token: " + LoadedConfig.AuthenticationToken)
 	fmt.Println("Discord guild ID: " + LoadedConfig.GuildID)
 	fmt.Println("Models directory: " + LoadedConfig.ModelDirectory)
-	fmt.Printf("Models to use: (%d total)\n", len(LoadedConfig.ModelsToUse))
+	fmt.Printf("\nModels to use: (%d total)\n", len(LoadedConfig.ModelsToUse))
 	for i := range LoadedConfig.ModelsToUse {
 		fmt.Println(LoadedConfig.ModelsToUse[i])
 	}
+	fmt.Printf("\nMaximum words: %d", LoadedConfig.MaxWords)
 	fmt.Println("Log directory: " + LoadedConfig.LogDir)
 	fmt.Println("Logging level: " + LoadedConfig.LogLevel)
 }

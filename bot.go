@@ -158,6 +158,9 @@ func RunBot() error {
 	// we know that text-generate command and the model option are both index 0
 	botCommands[0].Options[0].Choices = generateTextModelChoices
 
+	// also set the max amount of words from config
+	botCommands[0].Options[1].MaxValue = float64(LoadedConfig.MaxWords)
+
 	botPrintLog(strconv.Itoa(len(wordModels))+" models loaded in total", logger)
 
 	// initialize the bot
