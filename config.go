@@ -82,11 +82,11 @@ func ConfigShowConfig(configFile *os.File) {
 	fmt.Println("Discord authentication token: " + LoadedConfig.AuthenticationToken)
 	fmt.Println("Discord guild ID: " + LoadedConfig.GuildID)
 	fmt.Println("Models directory: " + LoadedConfig.ModelDirectory)
-	fmt.Printf("\nModels to use: (%d total)\n", len(LoadedConfig.ModelsToUse))
+	fmt.Printf("Models to use: (%d total)\n", len(LoadedConfig.ModelsToUse))
 	for i := range LoadedConfig.ModelsToUse {
 		fmt.Println(LoadedConfig.ModelsToUse[i])
 	}
-	fmt.Printf("\nMaximum words: %d", LoadedConfig.MaxWords)
+	fmt.Printf("\nMaximum words: %d\n", LoadedConfig.MaxWords)
 	fmt.Println("Log directory: " + LoadedConfig.LogDir)
 	fmt.Println("Logging level: " + LoadedConfig.LogLevel)
 }
