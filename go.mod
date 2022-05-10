@@ -1,4 +1,4 @@
-module Hurabotti
+module hurabot
 
 go 1.18
 
