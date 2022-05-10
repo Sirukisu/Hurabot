@@ -249,7 +249,7 @@ func CreateModelInit(directory *os.File) {
 	}
 
 	// start GUI for selecting enabled channels
-	DiscordChannelSelectionGUI()
+	DiscordChannelSelectionCUI()
 
 	// report model name and enabled channels after GUI
 	fmt.Println("Model filename: " + ModelFileName)

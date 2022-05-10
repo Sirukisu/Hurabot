@@ -109,7 +109,7 @@ func ConfigCreateEmptyConfig(configFile *os.File) {
 		log.Fatalln(err)
 	}
 	if strings.ToLower(string(resultChar)) == "y" {
-		ConfigEditGUI(nil)
+		ConfigEditCUI(nil)
 	}
 
 	botConfigJson, err := json.MarshalIndent(botConfig, "", "\t")
@@ -129,7 +129,7 @@ func ConfigCreateEmptyConfig(configFile *os.File) {
 
 func ConfigEdit(configFile *os.File) {
 
-	ConfigEditGUI(configFile)
+	ConfigEditCUI(configFile)
 
 	botConfigJson, err := json.MarshalIndent(LoadedConfig, "", "\t")
 

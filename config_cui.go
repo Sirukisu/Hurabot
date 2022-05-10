@@ -8,8 +8,8 @@ import (
 	"strconv"
 )
 
-// ConfigEditGUI open GUI for editing configs
-func ConfigEditGUI(configFile *os.File) {
+// ConfigEditCUI open CUI for editing configs
+func ConfigEditCUI(configFile *os.File) {
 	// check if file was provided
 	if configFile == nil {
 		if LoadedConfig == nil {
@@ -22,7 +22,7 @@ func ConfigEditGUI(configFile *os.File) {
 		}
 	}
 
-	// initialize GUI
+	// initialize CUI
 	g, err := gocui.NewGui(gocui.OutputNormal)
 
 	if err != nil {
@@ -63,7 +63,7 @@ func ConfigEditGUI(configFile *os.File) {
 	if err := g.SetKeybinding("editModelsToUse", gocui.KeyBackspace, gocui.ModNone, configEditModelsToUseRemoveModel); err != nil {
 		log.Panicln(err)
 	}
-	// keybinding for quiting the GUI
+	// keybinding for quiting the CUI
 	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, gocuiQuit); err != nil {
 		log.Panicln(err)
 	}
@@ -73,7 +73,7 @@ func ConfigEditGUI(configFile *os.File) {
 	}
 }
 
-// Main layout function for config GUI
+// Main layout function for config CUI
 func configEditLayout(g *gocui.Gui) error {
 	maxX, maxY := g.Size()
 	if v, err := g.SetView("configOptions", int(float32(maxX)*0.05), 0, int(float32(maxX)*0.95), int(float32(maxY)*0.8)); err != nil {
@@ -170,7 +170,7 @@ func configEditLogLevelCursorDown(_ *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
-// Function for handling enter presses in config GUI
+// Function for handling enter presses in config CUI
 func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 	_, cy := v.Cursor()
 	_, oy := v.Origin()
@@ -301,7 +301,7 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 					return err
 				}
 			}
-		// quit the GUI & save
+		// quit the CUI & save
 		case 7:
 			return gocui.ErrQuit
 		}

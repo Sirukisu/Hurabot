@@ -10,8 +10,8 @@ var GuildSelected int
 var GuildSelectedCPos int
 var GuildSelectedOPos int
 
-// DiscordChannelSelectionGUI GUI for selecting what channels to include in model creation
-func DiscordChannelSelectionGUI() {
+// DiscordChannelSelectionCUI CUI for selecting what channels to include in model creation
+func DiscordChannelSelectionCUI() {
 	g, err := gocui.NewGui(gocui.OutputNormal)
 	if err != nil {
 		log.Panicln(err)
@@ -22,7 +22,7 @@ func DiscordChannelSelectionGUI() {
 
 	g.SetManagerFunc(discordChannelSelectionLayout)
 
-	// keybinding for quiting the GUI
+	// keybinding for quiting the CUI
 	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, gocuiQuit); err != nil {
 		log.Panicln(err)
 	}
@@ -80,7 +80,7 @@ func DiscordChannelSelectionGUI() {
 	}
 }
 
-// Main layout function for model GUI
+// Main layout function for model CUI
 func discordChannelSelectionLayout(g *gocui.Gui) error {
 	maxX, maxY := g.Size()
 	if v, err := g.SetView("guilds", int(float32(maxX)*0.05), 0, int(float32(maxX)*0.95), int(float32(maxY)*0.8)); err != nil {
@@ -101,7 +101,7 @@ func discordChannelSelectionLayout(g *gocui.Gui) error {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
-		fmt.Fprintln(v, "CTRL+C Quit the GUI | CTRL+S Confirm choices | Space Enable or disable guild/channel")
+		fmt.Fprintln(v, "CTRL+C Quit the CUI | CTRL+S Confirm choices | Space Enable or disable guild/channel")
 	}
 	return nil
 }
@@ -130,7 +130,7 @@ func drawGuilds(v *gocui.View) error {
 	return nil
 }
 
-// Function for quiting the GUI
+// Function for quiting the CUI
 func gocuiQuit(_ *gocui.Gui, _ *gocui.View) error {
 	return gocui.ErrQuit
 }
