@@ -78,17 +78,21 @@ func ConfigShowConfig(configFile *os.File) {
 	}
 
 	// print info
-	fmt.Println("Config file: " + configFile.Name())
-	fmt.Println("Discord authentication token: " + LoadedConfig.AuthenticationToken)
-	fmt.Println("Discord guild ID: " + LoadedConfig.GuildID)
-	fmt.Println("Models directory: " + LoadedConfig.ModelDirectory)
-	fmt.Printf("Models to use: (%d total)\n", len(LoadedConfig.ModelsToUse))
+	fmt.Printf("Config file: %s\n"+
+		"Discord authentication token: %s\n"+
+		"Discord guild ID: %s\n"+
+		"Models directory: %s\n"+
+		"Models to use: (%d total)\n",
+		configFile.Name(), LoadedConfig.AuthenticationToken, LoadedConfig.GuildID, LoadedConfig.ModelDirectory,
+		len(LoadedConfig.ModelsToUse))
+
 	for i := range LoadedConfig.ModelsToUse {
 		fmt.Println(LoadedConfig.ModelsToUse[i])
 	}
-	fmt.Printf("\nMaximum words: %d\n", LoadedConfig.MaxWords)
-	fmt.Println("Log directory: " + LoadedConfig.LogDir)
-	fmt.Println("Logging level: " + LoadedConfig.LogLevel)
+	fmt.Printf("Maximum words: %d\n"+
+		"Log directory: %s\n"+
+		"Logging level: %s",
+		LoadedConfig.MaxWords, LoadedConfig.LogDir, LoadedConfig.LogLevel)
 }
 
 // ConfigCreateEmptyConfig creates a new MainBotConfig and writes it to an os.File

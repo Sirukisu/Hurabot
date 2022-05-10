@@ -134,9 +134,12 @@ func RunBot() error {
 	for _, file := range modelDirectoryContents {
 		modelFile, err := os.Open(LoadedConfig.ModelDirectory + file.Name())
 		if err != nil {
-			return errors.New("Failed to open model " + file.Name() + ": " + err.Error())
+			return errors.New("failed to open model " + file.Name() + ": " + err.Error())
 		}
-		wordModel := LoadModel(modelFile)
+		wordModel, err := LoadModel(modelFile)
+		if err != nil {
+			return errors.New("failed to decode model " + modelFile.Name() + ": " + err.Error())
+		}
 		botPrintLog("Loaded "+strconv.Itoa(len(wordModel.Words))+" words from model "+wordModel.Name, logger)
 		wordModels = append(wordModels, wordModel)
 	}
@@ -235,7 +238,7 @@ func openLog(config *MainBotConfig) (*os.File, error) {
 		if err != nil {
 			return nil, errors.New("failed to create log directory " + config.LogDir + ": " + err.Error())
 		}
-		fmt.Println("Log directory " + config.LogDir + " not, found, created it")
+		fmt.Printf("Log directory %s not, found, created it\n", config.LogDir)
 	} else if err != nil {
 		return nil, errors.New("error reading log directory " + config.LogDir + ": " + err.Error())
 	}
