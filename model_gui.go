@@ -101,7 +101,7 @@ func discordChannelSelectionLayout(g *gocui.Gui) error {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
-		fmt.Fprintln(v, "CTRL+C Quit the GUI | CTRL+D Confirm choices | Space Enable or disable guild/channel")
+		fmt.Fprintln(v, "CTRL+C Quit the GUI | CTRL+S Confirm choices | Space Enable or disable guild/channel")
 	}
 	return nil
 }
