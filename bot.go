@@ -3,11 +3,11 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
-	"os/signal"
-
 	"github.com/bwmarrin/discordgo"
+	"io"
+	"log"
 	"os"
+	"os/signal"
 	"strconv"
 	"time"
 )
@@ -53,11 +53,11 @@ var (
 			// check if message was sent from a guild or from a DM and log accordingly
 			// TODO add given options to the log message
 			if i.Member != nil {
-				botPrintLog("Received command request from "+i.Member.User.Username+"#"+i.Member.User.Discriminator+": "+
-					i.ApplicationCommandData().Name, logger)
+				logger.Printf("Received command request from %s#%s: %v\n", i.Member.User.Username, i.Member.User.Discriminator,
+					i.ApplicationCommandData())
 			} else if i.User != nil {
-				botPrintLog("Received command request from "+i.User.Username+"#"+i.User.Discriminator+": "+
-					i.ApplicationCommandData().Name, logger)
+				logger.Printf("Received command request from %s#%s: %v\n", i.User.Username, i.User.Discriminator,
+					i.ApplicationCommandData())
 			}
 
 			// make map of the options received
@@ -117,11 +117,12 @@ func RunBot() error {
 	}
 
 	// initialize the logger
-	logFile, err := openLog(LoadedConfig)
+	logFile, err := openLog()
 	if err != nil {
 		return errors.New("error starting bot: failed to open log file " + err.Error())
 	}
-	logger = log.New(logFile, "", log.Flags())
+	logMultiWriter := io.MultiWriter(logFile, os.Stdout)
+	logger = log.New(logMultiWriter, "", log.Flags())
 
 	// read the model directory contents & load the models found
 	// TODO individual file mode
@@ -140,7 +141,7 @@ func RunBot() error {
 		if err != nil {
 			return errors.New("failed to decode model " + modelFile.Name() + ": " + err.Error())
 		}
-		botPrintLog("Loaded "+strconv.Itoa(len(wordModel.Words))+" words from model "+wordModel.Name, logger)
+		logger.Printf("Loaded %d words from model %s\n", len(wordModel.Words), wordModel.Name)
 		wordModels = append(wordModels, wordModel)
 	}
 
@@ -164,17 +165,17 @@ func RunBot() error {
 	// also set the max amount of words from config
 	botCommands[0].Options[1].MaxValue = float64(LoadedConfig.MaxWords)
 
-	botPrintLog(strconv.Itoa(len(wordModels))+" models loaded in total", logger)
+	logger.Printf("%d models loaded in total\n", len(wordModels))
 
 	// initialize the bot
-	botPrintLog("Bot starting", logger)
+	logger.Println("Bot starting")
 	bot, err := discordgo.New("Bot " + LoadedConfig.AuthenticationToken)
 
 	if err != nil {
 		return errors.New("failed to create bot: " + err.Error())
 	}
 
-	botPrintLog("Adding handlers", logger)
+	logger.Println("Adding handlers")
 	bot.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if h, ok := commandHandlers[i.ApplicationCommandData().Name]; ok {
 			h(s, i)
@@ -182,22 +183,21 @@ func RunBot() error {
 	})
 
 	bot.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
-		botPrintLog("Logged in as: "+s.State.User.Username+"#"+s.State.User.Discriminator, logger)
+		logger.Printf("Logged in as %s#%s\n", s.State.User.Username, s.State.User.Discriminator)
 	})
 
 	err = bot.Open()
 	if err != nil {
-		botPrintLog("Cannot open the session: "+err.Error(), logger)
-		return err
+		return errors.New(fmt.Sprintf("cannot open the session: %v", err))
 	}
 
 	// register the commands from botCommands
-	botPrintLog("Adding commands...", logger)
+	logger.Println("Adding commands...")
 	registeredCommands := make([]*discordgo.ApplicationCommand, len(botCommands))
 	for i, v := range botCommands {
 		cmd, err := bot.ApplicationCommandCreate(bot.State.User.ID, LoadedConfig.GuildID, v)
 		if err != nil {
-			botPrintLog("Cannot create command "+v.Name+": "+err.Error(), logger)
+			logger.Printf("Cannot create command %s: %v", v.Name, err)
 		}
 		registeredCommands[i] = cmd
 	}
@@ -211,11 +211,11 @@ func RunBot() error {
 	<-stop
 
 	// remove the commands & shut down
-	botPrintLog("Removing commands...", logger)
+	logger.Println("Removing commands...")
 	// // We need to fetch the commands, since deleting requires the command ID.
 	registeredCommands, err = bot.ApplicationCommands(bot.State.User.ID, LoadedConfig.GuildID)
 	if err != nil {
-		logger.Fatalln("Could not fetch registered commands: " + err.Error())
+		logger.Fatalf("Could not fetch registered commands: %v", err)
 	}
 
 	for _, v := range registeredCommands {
@@ -230,33 +230,31 @@ func RunBot() error {
 }
 
 // openLog opens a log file in the directory of MainBotConfig for writing
-func openLog(config *MainBotConfig) (*os.File, error) {
-	_, err := os.Stat(config.LogDir)
+func openLog() (*os.File, error) {
+	if LoadedConfig.LogDir == "" {
+		return nil, errors.New("no log dir found in config")
+	}
+
+	_, err := os.Stat(LoadedConfig.LogDir)
 
 	if os.IsNotExist(err) {
-		err := os.Mkdir(config.LogDir, 0775)
+		err := os.Mkdir(LoadedConfig.LogDir, 0775)
 		if err != nil {
-			return nil, errors.New("failed to create log directory " + config.LogDir + ": " + err.Error())
+			return nil, errors.New("failed to create log directory " + LoadedConfig.LogDir + ": " + err.Error())
 		}
-		fmt.Printf("Log directory %s not, found, created it\n", config.LogDir)
+		fmt.Printf("Log directory %s not, found, created it\n", LoadedConfig.LogDir)
 	} else if err != nil {
-		return nil, errors.New("error reading log directory " + config.LogDir + ": " + err.Error())
+		return nil, errors.New("error reading log directory " + LoadedConfig.LogDir + ": " + err.Error())
 	}
 
 	timeNow := time.Now()
-	logFilename := "log_" + strconv.Itoa(timeNow.Year()) + "_" + strconv.Itoa(int(timeNow.Month())) + "_" + strconv.Itoa(timeNow.Day()) + ".log"
+	logFilename := fmt.Sprintf("log_%d_%d_%d.log", timeNow.Year(), timeNow.Month(), timeNow.Day())
 
-	logFile, err := os.OpenFile(config.LogDir+logFilename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0664)
+	logFile, err := os.OpenFile(LoadedConfig.LogDir+logFilename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0664)
 
 	if err != nil {
 		return nil, errors.New("failed to open/create log file: " + err.Error())
 	}
 
 	return logFile, nil
-}
-
-// botPrintLog prints the input to stdout and the log file
-func botPrintLog(input string, logger *log.Logger) {
-	logger.Println(input)
-	log.Println(input)
 }
