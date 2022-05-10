@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -83,9 +84,9 @@ type ChannelWorker struct {
 }
 
 // Work Function for skywalker for finding channel.json files in subdirectories
-func (ew *ChannelWorker) Work(path string) {
-	ew.Lock()
-	defer ew.Unlock()
+func (w *ChannelWorker) Work(path string) {
+	w.Lock()
+	defer w.Unlock()
 
 	file, err := os.Stat(path)
 	if err != nil {
@@ -93,7 +94,7 @@ func (ew *ChannelWorker) Work(path string) {
 	}
 
 	if file.Name() == "channel.json" {
-		ew.found = append(ew.found, path)
+		w.found = append(w.found, path)
 	}
 }
 
@@ -284,11 +285,11 @@ func LoadChannelInfoFromMessages(directory *os.File) []DiscordMessagesChannelInf
 	channelInfo := make([]DiscordMessagesChannelInfoFromFile, 0)
 
 	// create the channel worker for Skywalker
-	ew := new(ChannelWorker)
-	ew.Mutex = new(sync.Mutex)
+	cw := new(ChannelWorker)
+	cw.Mutex = new(sync.Mutex)
 
 	// use Skywalker module to check every subdirectory for .json files
-	sw := skywalker.New(directory.Name(), ew)
+	sw := skywalker.New(directory.Name(), cw)
 	sw.ExtListType = skywalker.LTWhitelist
 	sw.ExtList = []string{".json"}
 	sw.FilesOnly = true
@@ -298,8 +299,8 @@ func LoadChannelInfoFromMessages(directory *os.File) []DiscordMessagesChannelInf
 		fmt.Println(err)
 		return nil
 	}
-	sort.Sort(sort.StringSlice(ew.found))
-	for _, f := range ew.found {
+	sort.Sort(sort.StringSlice(cw.found))
+	for _, f := range cw.found {
 		channelData, err := os.ReadFile(f)
 
 		if err != nil {
@@ -375,20 +376,17 @@ func CreateModel(fileOrDirectory *os.File) {
 		if err != nil {
 			log.Fatalln("Failed to read directory contents: " + err.Error())
 		}
-
 		// loop through all enabled channels & process their messages.csv files
 		for _, guild := range DiscordGuilds {
 			for _, channel := range guild.Channels {
 				if channel.Enabled == true {
 					log.Println("Processing channel " + channel.Name + " in guild " + guild.Name)
 
-					// change into channel directory
-					if err := os.Chdir(fileOrDirectory.Name() + string(os.PathSeparator) + "c" + strconv.Itoa(channel.ID)); err != nil {
-						log.Fatalln("Failed to change to channel directory: " + err.Error())
-					}
+					// get the filepath of the channel's messages.csv
+					messagesFilePath := path.Clean(fileOrDirectory.Name() + string(os.PathSeparator) + "c" + strconv.Itoa(channel.ID) + string(os.PathSeparator) + "messages.csv")
 
 					// open the messages.csv of the channel
-					messagesCsv, err := os.Open("messages.csv")
+					messagesCsv, err := os.Open(messagesFilePath)
 
 					if err != nil {
 						log.Fatalln("Failed to read messages.csv for channel " + channel.Name + ": " + err.Error())
@@ -431,8 +429,8 @@ func CreateModel(fileOrDirectory *os.File) {
 
 // ProcessMessagesCSV decodes a channels messages.csv file into a MessagesCsv
 func ProcessMessagesCSV(csvFile *os.File) ([]MessagesCsv, error) {
-	if csvFile.Name() != "messages.csv" {
-		return nil, errors.New("filename is not messages.csv")
+	if strings.HasSuffix(csvFile.Name(), "messages.csv") == false {
+		return nil, errors.New("filename " + csvFile.Name() + " is not messages.csv")
 	}
 
 	var messages []MessagesCsv
