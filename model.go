@@ -12,7 +12,6 @@ import (
 	"io"
 	"log"
 	"math/rand"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -412,7 +411,7 @@ func CreateModel(fileOrDirectory *os.File) {
 	if len(messagesParsed) < 1 {
 		log.Panicln("No messages were parsed, aborting")
 	}
-	log.Println("Parsed " + strconv.Itoa(len(messagesParsed)) + " total messages")
+	log.Printf("Parsed %d total messages\n", len(messagesParsed))
 
 	// filter messages
 	log.Println("Now sanitizing messages and splitting words")
@@ -482,11 +481,14 @@ func SanitizeMessages(messages []MessagesCsv) []string {
 		messageWords := strings.Split(message.Contents, " ")
 		for _, word := range messageWords {
 
-			// check if word is a URL, skip if it is
-			// TODO a bit overly sensitive, check if there's a better way to do this
-			_, err := url.ParseRequestURI(word)
+			// word is empty, skip
+			if word == "" {
+				log.Println("Word is empty, skipping")
+				continue
+			}
 
-			if err == nil {
+			// check if word is a URL, skip if it is
+			if strings.HasPrefix(word, "https://") || strings.HasPrefix(word, "http://") {
 				log.Println("Word " + word + " is a URL, skipping")
 				continue
 			}
@@ -497,15 +499,15 @@ func SanitizeMessages(messages []MessagesCsv) []string {
 				continue
 			}
 
-			// word is empty, skip
-			if word == "" {
-				log.Println("Word is empty, skipping")
-				continue
-			}
-
 			// word is a mention, skip
 			if strings.Contains(word, "<@") && strings.HasSuffix(word, ">") {
 				log.Println("Word " + word + " is a mention, skipping")
+				continue
+			}
+
+			// word is a channel mention, skip
+			if strings.HasPrefix(word, "<#") && strings.HasSuffix(word, ">") {
+				log.Println("Word " + word + " is a channel mention, skipping")
 				continue
 			}
 
