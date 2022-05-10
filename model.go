@@ -504,7 +504,7 @@ func SanitizeMessages(messages []MessagesCsv) []string {
 			}
 
 			// word is a mention, skip
-			if strings.Contains(word, "<@!") && strings.HasSuffix(word, ">") {
+			if strings.Contains(word, "<@") && strings.HasSuffix(word, ">") {
 				log.Println("Word " + word + " is a mention, skipping")
 				continue
 			}
