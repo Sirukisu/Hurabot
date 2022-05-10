@@ -11,6 +11,7 @@ import (
 	"github.com/mb-14/gomarkov"
 	"io"
 	"log"
+	"math/rand"
 	"net/url"
 	"os"
 	"path"
@@ -596,21 +597,29 @@ func SaveModel(words []string) error {
 }
 
 // LoadModel loads a WordModel from os.File
-func LoadModel(modelFile *os.File) *WordModel {
+func LoadModel(modelFile *os.File) (*WordModel, error) {
 	var wordModel *WordModel
 
 	dec := gob.NewDecoder(modelFile)
 	err := dec.Decode(&wordModel)
 
 	if err != nil {
-		log.Fatalln("Failed to decode model " + modelFile.Name() + ": " + err.Error())
+		return nil, err
 	}
 
-	return wordModel
+	return wordModel, nil
 }
 
 // GenerateWords generates random words from a WordModel
 func GenerateWords(model *WordModel, amount *int) string {
+	// shuffle the first word for more randomness
+	randomPosition := rand.Intn(len(model.Words))
+	firstWord := model.Words[0]
+	randomWord := model.Words[randomPosition]
+
+	model.Words[0] = randomWord
+	model.Words[randomPosition] = firstWord
+
 	// create new chain
 	chain := gomarkov.NewChain(1)
 

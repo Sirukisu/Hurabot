@@ -3,9 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/akamensky/argparse"
-	"math/rand"
 	"os"
-	"strconv"
 )
 
 func main() {
@@ -26,7 +24,7 @@ func main() {
 
 	// model text generation command
 	modelCommandGenerate := modelCommand.NewCommand("generate", "Generate random text from a model")
-	modelCommandGenerateModelArg := modelCommandGenerate.File("m", "model", os.O_RDONLY, 0440, &argparse.Options{
+	modelCommandModelFileArg := modelCommandGenerate.File("m", "model", os.O_RDONLY, 0440, &argparse.Options{
 		Required: true,
 		Validate: nil,
 		Help:     "Model file to use",
@@ -89,15 +87,13 @@ func main() {
 	}
 
 	if modelCommandGenerate.Happened() {
-		wordModel := LoadModel(modelCommandGenerateModelArg)
-		fmt.Println("Loaded " + strconv.Itoa(len(wordModel.Words)) + " words  from model " + wordModel.Name)
-		// shuffle the first word for more randomness
-		randomPosition := rand.Intn(len(wordModel.Words))
-		firstWord := wordModel.Words[0]
-		randomWord := wordModel.Words[randomPosition]
+		wordModel, err := LoadModel(modelCommandModelFileArg)
 
-		wordModel.Words[0] = randomWord
-		wordModel.Words[randomPosition] = firstWord
+		if err != nil {
+			fmt.Println("Failed to load model " + modelCommandModelFileArg.Name())
+			return
+		}
+		fmt.Printf("Loaded %d words from model %s\n", len(wordModel.Words), wordModel.Name)
 
 		generatedText := GenerateWords(wordModel, modelCommandGenerateCountArg)
 		fmt.Println(generatedText)
