@@ -60,7 +60,7 @@ func ConfigEditCUI(configFile *os.File) {
 		log.Panicln(err)
 	}
 	// keybinding for removing a model in models to use view
-	if err := g.SetKeybinding("editModelsToUse", gocui.KeyBackspace, gocui.ModNone, configEditModelsToUseRemoveModel); err != nil {
+	if err := g.SetKeybinding("editModelsToUse", gocui.KeyDelete, gocui.ModNone, configEditModelsToUseRemoveModel); err != nil {
 		log.Panicln(err)
 	}
 	// keybinding for quiting the CUI
@@ -76,7 +76,7 @@ func ConfigEditCUI(configFile *os.File) {
 // Main layout function for config CUI
 func configEditLayout(g *gocui.Gui) error {
 	maxX, maxY := g.Size()
-	if v, err := g.SetView("configOptions", int(float32(maxX)*0.05), 0, int(float32(maxX)*0.95), int(float32(maxY)*0.8)); err != nil {
+	if v, err := g.SetView("configOptions", int(float32(maxX)*0.05), 0, int(float32(maxX)*0.95), int(float32(maxY)*0.7)); err != nil {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
@@ -96,7 +96,7 @@ func configEditLayout(g *gocui.Gui) error {
 }
 
 // Print the config options to a gocui.View
-func drawOptions(v *gocui.View) error {
+func drawOptions(v *gocui.View) {
 	v.Clear()
 
 	fmt.Fprintf(v, "Authentication token: %s\n"+
@@ -109,19 +109,15 @@ func drawOptions(v *gocui.View) error {
 		"Save config",
 		LoadedConfig.AuthenticationToken, LoadedConfig.GuildID, LoadedConfig.ModelDirectory, len(LoadedConfig.ModelsToUse),
 		LoadedConfig.MaxWords, LoadedConfig.LogDir, LoadedConfig.LogLevel)
-
-	return nil
 }
 
 // Print the models to use to a gocui.View
-func drawModelsToUse(v *gocui.View) error {
+func drawModelsToUse(v *gocui.View) {
 	v.Clear()
 
 	for i := range LoadedConfig.ModelsToUse {
 		fmt.Fprintln(v, LoadedConfig.ModelsToUse[i])
 	}
-
-	return nil
 }
 
 // Function for cursor down in config edit view
@@ -197,6 +193,13 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 
 				fmt.Fprint(v, LoadedConfig.AuthenticationToken)
 
+				if v, err := g.SetView("helpBar", int(float32(maxX)*0.05), int(float32(maxY)*0.75), int(float32(maxX)*0.95), int(float32(maxY)*0.80)); err != nil {
+					if err != gocui.ErrUnknownView {
+						return err
+					}
+					fmt.Fprintln(v, "Bot token for logging into Discord")
+				}
+
 				if _, err := g.SetCurrentView("editAuthenticationToken"); err != nil {
 					return err
 				}
@@ -212,6 +215,13 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 				v.Editable = true
 
 				fmt.Fprint(v, LoadedConfig.GuildID)
+
+				if v, err := g.SetView("helpBar", int(float32(maxX)*0.05), int(float32(maxY)*0.85), int(float32(maxX)*0.95), int(float32(maxY)*0.90)); err != nil {
+					if err != gocui.ErrUnknownView {
+						return err
+					}
+					fmt.Fprintln(v, "ID of the guild to register commands to, registers globally if left empty")
+				}
 
 				if _, err := g.SetCurrentView("editGuildName"); err != nil {
 					return err
@@ -229,13 +239,20 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 
 				fmt.Fprint(v, LoadedConfig.ModelDirectory)
 
+				if v, err := g.SetView("helpBar", int(float32(maxX)*0.05), int(float32(maxY)*0.85), int(float32(maxX)*0.95), int(float32(maxY)*0.90)); err != nil {
+					if err != gocui.ErrUnknownView {
+						return err
+					}
+					fmt.Fprintln(v, "Folder that contains the word models to use")
+				}
+
 				if _, err := g.SetCurrentView("editModelDirectory"); err != nil {
 					return err
 				}
 			}
 		// open models to use edit view
 		case 3:
-			if v, err := g.SetView("editModelsToUse", int(float32(maxX)*0.2), int(float32(maxY)*0.2), int(float32(maxX)*0.8), int(float32(maxY)*0.8)); err != nil {
+			if v, err := g.SetView("editModelsToUse", int(float32(maxX)*0.2), int(float32(maxY)*0.05), int(float32(maxX)*0.8), int(float32(maxY)*0.7)); err != nil {
 				if err != gocui.ErrUnknownView {
 					return err
 				}
@@ -246,6 +263,13 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 				v.SelFgColor = gocui.ColorBlack
 
 				drawModelsToUse(v)
+
+				if v, err := g.SetView("editModelsToUseHelpBar", int(float32(maxX)*0.05), int(float32(maxY)*0.75), int(float32(maxX)*0.95), int(float32(maxY)*0.85)); err != nil {
+					if err != gocui.ErrUnknownView {
+						return err
+					}
+					fmt.Fprintln(v, "List of model files to use if the whole model directory isn't wanted\n[Enter] close view | [Space] add new model | [Delete] remove model")
+				}
 
 				if _, err := g.SetCurrentView("editModelsToUse"); err != nil {
 					return err
@@ -262,6 +286,13 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 
 				fmt.Fprint(v, LoadedConfig.MaxWords)
 
+				if v, err := g.SetView("helpBar", int(float32(maxX)*0.05), int(float32(maxY)*0.85), int(float32(maxX)*0.95), int(float32(maxY)*0.90)); err != nil {
+					if err != gocui.ErrUnknownView {
+						return err
+					}
+					fmt.Fprintln(v, "Max amount of words that the bot can generate")
+				}
+
 				if _, err := g.SetCurrentView("editMaxWords"); err != nil {
 					return err
 				}
@@ -277,6 +308,13 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 				v.Editable = true
 
 				fmt.Fprint(v, LoadedConfig.LogDir)
+
+				if v, err := g.SetView("helpBar", int(float32(maxX)*0.05), int(float32(maxY)*0.85), int(float32(maxX)*0.95), int(float32(maxY)*0.90)); err != nil {
+					if err != gocui.ErrUnknownView {
+						return err
+					}
+					fmt.Fprintln(v, "Directory where to save log files")
+				}
 
 				if _, err := g.SetCurrentView("editLogDirectory"); err != nil {
 					return err
@@ -296,6 +334,13 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 
 				fmt.Fprintln(v, "default")
 				fmt.Fprintln(v, "verbose")
+
+				if v, err := g.SetView("helpBar", int(float32(maxX)*0.05), int(float32(maxY)*0.85), int(float32(maxX)*0.95), int(float32(maxY)*0.90)); err != nil {
+					if err != gocui.ErrUnknownView {
+						return err
+					}
+					fmt.Fprintln(v, "Level of logging")
+				}
 
 				if _, err := g.SetCurrentView("editLogLevel"); err != nil {
 					return err
@@ -321,6 +366,9 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 			return err
 		}
 		if _, err := g.SetCurrentView("configOptions"); err != nil {
+			return err
+		}
+		if err := g.DeleteView("helpBar"); err != nil {
 			return err
 		}
 
@@ -350,6 +398,9 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 		if _, err := g.SetCurrentView("configOptions"); err != nil {
 			return err
 		}
+		if err := g.DeleteView("helpBar"); err != nil {
+			return err
+		}
 
 		g.Update(func(g *gocui.Gui) error {
 			configOptionsView, err := g.View("configOptions")
@@ -377,6 +428,9 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 		if _, err := g.SetCurrentView("configOptions"); err != nil {
 			return err
 		}
+		if err := g.DeleteView("helpBar"); err != nil {
+			return err
+		}
 
 		g.Update(func(g *gocui.Gui) error {
 			configOptionsView, err := g.View("configOptions")
@@ -395,6 +449,10 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 			return err
 		}
 		if _, err := g.SetCurrentView("configOptions"); err != nil {
+			return err
+		}
+
+		if err := g.DeleteView("editModelsToUseHelpBar"); err != nil {
 			return err
 		}
 
@@ -428,6 +486,9 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 			return err
 		}
 		if _, err := g.SetCurrentView("configOptions"); err != nil {
+			return err
+		}
+		if err := g.DeleteView("helpBar"); err != nil {
 			return err
 		}
 
@@ -484,6 +545,9 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 		if _, err := g.SetCurrentView("configOptions"); err != nil {
 			return err
 		}
+		if err := g.DeleteView("helpBar"); err != nil {
+			return err
+		}
 
 		g.Update(func(g *gocui.Gui) error {
 			configOptionsView, err := g.View("configOptions")
@@ -509,6 +573,9 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 			return err
 		}
 		if _, err := g.SetCurrentView("configOptions"); err != nil {
+			return err
+		}
+		if err := g.DeleteView("helpBar"); err != nil {
 			return err
 		}
 
