@@ -252,10 +252,6 @@ func changeChannelEnabled(g *gocui.Gui, v *gocui.View) error {
 	_, cy := v.Cursor()
 	_, oy := v.Origin()
 
-	if len(DiscordGuilds) <= oy+cy {
-		return nil
-	}
-
 	guildInfo := &DiscordGuilds[GuildSelected]
 
 	channelInfo := &guildInfo.Channels[cy+oy]
