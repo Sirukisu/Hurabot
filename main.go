@@ -74,12 +74,10 @@ func main() {
 		fmt.Println("Type -h for usage info")
 		return
 	}
-
 	// handle model commands
 	if modelCommandCreate.Happened() {
 		CreateModelInit(modelCommandCreateArgs)
 	}
-
 	if modelCommandList.Happened() {
 		if len(*modelCommandListArgs) == 0 {
 			fmt.Println("No models provided")
@@ -101,7 +99,6 @@ func main() {
 		}
 		return
 	}
-
 	if modelCommandGenerate.Happened() {
 		wordModel, err := LoadModel(modelCommandModelFileArg)
 
@@ -111,8 +108,7 @@ func main() {
 		}
 		fmt.Printf("Loaded %d words from model %s\n", len(wordModel.Words), wordModel.Name)
 
-		generatedText := GenerateWords(wordModel, modelCommandGenerateCountArg)
-		fmt.Println(generatedText)
+		fmt.Println(GenerateWords(wordModel, modelCommandGenerateCountArg))
 	}
 
 	// handle config commands
