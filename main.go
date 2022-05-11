@@ -12,6 +12,13 @@ func main() {
 	// MODEL COMMANDS
 	modelCommand := parser.NewCommand("model", "manage bot word models")
 
+	modelCommandModelFileOptions := &argparse.Options{
+		Required: true,
+		Validate: nil,
+		Help:     "Model file to use",
+		Default:  nil,
+	}
+
 	// model creation command
 	modelCommandCreate := modelCommand.NewCommand("create", "create new model from discord messages")
 	modelCommandCreateArgs := modelCommandCreate.File("f", "file", os.O_RDONLY, 0660, &argparse.Options{
@@ -20,25 +27,20 @@ func main() {
 		Help:     "Discord messages folder to process",
 		Default:  nil,
 	})
-	modelCommandList := modelCommand.NewCommand("list", "List current models")
+
+	// model list command
+	modelCommandList := modelCommand.NewCommand("list", "list info from a model")
+	modelCommandListArgs := modelCommandList.FileList("f", "file", os.O_RDONLY, 0440, modelCommandModelFileOptions)
 
 	// model text generation command
 	modelCommandGenerate := modelCommand.NewCommand("generate", "Generate random text from a model")
-	modelCommandModelFileArg := modelCommandGenerate.File("m", "model", os.O_RDONLY, 0440, &argparse.Options{
-		Required: true,
-		Validate: nil,
-		Help:     "Model file to use",
-		Default:  nil,
-	})
+	modelCommandModelFileArg := modelCommandGenerate.File("m", "model", os.O_RDONLY, 0440, modelCommandModelFileOptions)
 	modelCommandGenerateCountArg := modelCommandGenerate.Int("w", "words", &argparse.Options{
 		Required: false,
 		Validate: nil,
 		Help:     "Amount of words to generate",
 		Default:  10,
 	})
-
-	// TODO model delete command, is it necessary?
-	modelCommandRemove := modelCommand.NewCommand("remove", "Remove a model")
 
 	// CONFIG OPTIONS
 	configCommand := parser.NewCommand("config", "config options")
@@ -79,11 +81,25 @@ func main() {
 	}
 
 	if modelCommandList.Happened() {
-		//TODO model command list
-	}
+		if len(*modelCommandListArgs) == 0 {
+			fmt.Println("No models provided")
+			return
+		}
 
-	if modelCommandRemove.Happened() {
-		//TODO model command remove
+		for _, file := range *modelCommandListArgs {
+			model, err := LoadModel(&file)
+
+			if err != nil {
+				fmt.Printf("Failed to load model %s: %v", file.Name(), err.Error())
+				return
+			}
+
+			fmt.Printf("Model name: %s\n"+
+				"Model word count: %d\n",
+				model.Name, len(model.Words))
+
+		}
+		return
 	}
 
 	if modelCommandGenerate.Happened() {
