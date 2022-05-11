@@ -2,11 +2,19 @@
 
 A Discord bot that uses Markov chains to generate random text from your messages.
 
-## Installation & Usage
+## 🔧 List of features
+- Make word models from Discord messages data
+- Generate random text from these models
+- Launch a Discord bot that can generate messages with a slash command
+- Restrict Discord bot commands to a specific guild only
+- Set a maximum amount of words that can be generated with a single command with the Discord bot
+
+
+## 📦 Installation & Usage
 
 Either:
 
-- Download the [latest release]() & extract it to a folder
+- Download the [latest release](https://github.com/Sirukisu/Hurabot/releases/latest) & place it to a folder
 
 Or build from source:
 
@@ -16,7 +24,7 @@ Or build from source:
 
 
 ### Configuration
-Create a new config using the `bot config create` command or by editing the example configuration file.
+Create a new config using the `bot config create` command.
 
 The current config options are as follows:
 
@@ -26,7 +34,8 @@ The current config options are as follows:
 | GuildID             | ID of the guild to register commands to, registers globally if left empty. |
 | ModelFolder         | Folder that contains the word models to use.                               |
 | ModelsToUse         | List of model files to use if the whole model directory isn't wanted.      |
-| LogDir              | Directory to save log files to.                                            |
+| MaxWords            | Max amount of words that the bot can generate.                             |
+| LogDir              | Directory where to save log files.                                         |
 | LogLevel            | Level of logging.                                                          |
 
 ### Making word models
@@ -52,16 +61,18 @@ Run the bot by using the command `bot run`.
 
 Generate text using the `/generate-text` slash command.
 
-## List of commands
+## ✍ Features planned
 
-
-
-
-## Features planned
-
-- GUI for managing bot
+- CUI for managing bot
 - Adding timed events for sending daily messages for example
+- Make a model from individual messages.csv files
+- More bot commands? Ideas are welcome
 
+## ❗ Known issues
+- Currently, the `LogLevel` and `ModelsToUse` config options do nothing
+- The CUIs can crash the program if the terminal display is too small
+- Backslashes can't be entered in the CUIs
 
-## Known issues
-- Path to messages folder in model creation must be specified absolutely
+## ✨ Credits
+- Thanks to my Discord friends who gave me this dumb idea
+- Also, this is also my first project that I have managed to do from start to finish, so any feedback on what I could do better is very much welcome!
