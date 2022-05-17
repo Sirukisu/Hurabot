@@ -29,8 +29,8 @@ func main() {
 	})
 
 	// model list command
-	modelCommandList := modelCommand.NewCommand("list", "list info from a model")
-	modelCommandListArgs := modelCommandList.FileList("f", "file", os.O_RDONLY, 0440, modelCommandModelFileOptions)
+	modelCommandShow := modelCommand.NewCommand("show", "show info from a model")
+	modelCommandShowArgs := modelCommandShow.FileList("f", "file", os.O_RDONLY, 0440, modelCommandModelFileOptions)
 
 	// model text generation command
 	modelCommandGenerate := modelCommand.NewCommand("generate", "Generate random text from a model")
@@ -53,11 +53,13 @@ func main() {
 		Default:  "config.json",
 	}
 
-	configCommandConfigFile := configCommand.File("c", "config-file", os.O_RDWR|os.O_CREATE, 0660, configCommandFileOptions)
-
 	configCommandShow := configCommand.NewCommand("show", "Show config")
 	configCommandCreate := configCommand.NewCommand("create", "Create a blank config")
 	configCommandEdit := configCommand.NewCommand("edit", "Edit config file")
+
+	configCommandShowConfigFile := configCommandShow.File("c", "config-file", os.O_RDONLY, 0660, configCommandFileOptions)
+	configCommandCreateConfigFile := configCommandCreate.File("c", "config-file", os.O_RDWR|os.O_CREATE, 0660, configCommandFileOptions)
+	configCommandEditConfigFile := configCommandEdit.File("c", "config-file", os.O_RDWR, 0660, configCommandFileOptions)
 
 	// BOT COMMANDS
 	botCommand := parser.NewCommand("bot", "bot options")
@@ -76,15 +78,17 @@ func main() {
 	}
 	// handle model commands
 	if modelCommandCreate.Happened() {
-		CreateModelInit(modelCommandCreateArgs)
+		if err := CreateModel(modelCommandCreateArgs); err != nil {
+			fmt.Printf("Error creating model: %v", err)
+		}
 	}
-	if modelCommandList.Happened() {
-		if len(*modelCommandListArgs) == 0 {
+	if modelCommandShow.Happened() {
+		if len(*modelCommandShowArgs) == 0 {
 			fmt.Println("No models provided")
 			return
 		}
 
-		for _, file := range *modelCommandListArgs {
+		for _, file := range *modelCommandShowArgs {
 			model, err := LoadModel(&file)
 
 			if err != nil {
@@ -113,13 +117,20 @@ func main() {
 
 	// handle config commands
 	if configCommandShow.Happened() {
-		ConfigShowConfig(configCommandConfigFile)
+		if err := ConfigShowConfig(configCommandShowConfigFile); err != nil {
+			fmt.Printf("Failed to show config %s: %v\n", configCommandShowConfigFile.Name(), err)
+		}
+		return
 	}
 	if configCommandCreate.Happened() {
-		ConfigCreateEmptyConfig(configCommandConfigFile)
+		if err := ConfigCreateEmptyConfig(configCommandCreateConfigFile); err != nil {
+			fmt.Printf("Failed to create a new config at %s: %v\n", configCommandCreateConfigFile.Name(), err)
+		}
+		return
 	}
 	if configCommandEdit.Happened() {
-		ConfigEdit(configCommandConfigFile)
+		ConfigEdit(configCommandEditConfigFile)
+		return
 	}
 
 	// handle bot commands
@@ -129,7 +140,7 @@ func main() {
 			return
 		}
 		if err := RunBot(); err != nil {
-			fmt.Println(err)
+			fmt.Printf("Error running bot: %v", err)
 			return
 		}
 	}
