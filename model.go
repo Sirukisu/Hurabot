@@ -5,7 +5,6 @@ import (
 	"encoding/csv"
 	"encoding/gob"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/dixonwille/skywalker"
 	"github.com/mb-14/gomarkov"
@@ -14,7 +13,6 @@ import (
 	"math/rand"
 	"os"
 	"path"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -107,153 +105,73 @@ var ModelFileName string
 // ModelName Name of the model to be created
 var ModelName string
 
-// CreateModelInit Function for reading the channels from Discord messages data & organizing them
-func CreateModelInit(directory *os.File) {
-	directoryInfo, err := directory.Stat()
+func CreateModel(directory *os.File) error {
+	// try to load config from default location
+	configLoaded := false
+
+	if err := ConfigLoadConfig(nil); err == nil {
+		configLoaded = true
+	}
+
+	// determine if we have a file or a directory
+
+	fileInfo, err := directory.Stat()
 
 	if err != nil {
-		fmt.Println(err)
-		return
+		return fmt.Errorf("failed to get info from %s: %v", directory.Name(), err)
 	}
 
-	if directoryInfo.IsDir() != true {
-		fmt.Println("File " + directory.Name() + " is not a directory")
-		return
+	if fileInfo.IsDir() == false {
+		return fmt.Errorf("%s is not a directory", directory.Name())
 	}
 
-	// just load everything from the directory & subdirectories
-	loadedChannels := LoadChannelInfoFromMessages(directory)
-
-	// make list of guilds & check for duplicates
-	listOfGuilds := make([]DiscordMessagesChannelGuildInfoFromFile, 0)
-
-	for _, channel := range loadedChannels {
-		newGuild := DiscordMessagesChannelGuildInfoFromFile{
-			ID:   channel.Guild.ID,
-			Name: channel.Guild.Name,
-		}
-
-		listOfGuilds = append(listOfGuilds, newGuild)
-	}
-	listOfGuildsParsed := CheckForDuplicateGuilds(listOfGuilds)
-
-	// finally organize guilds with channels
-
-	for _, guild := range listOfGuildsParsed {
-		guildId, err := strconv.Atoi(guild.ID)
-
-		if err != nil {
-			guildId = 0
-		}
-
-		if guild.Name == "" {
-			continue
-		}
-
-		newGuild := DiscordGuild{
-			ID:       guildId,
-			Name:     guild.Name,
-			Channels: nil,
-		}
-
-		for _, channel := range loadedChannels {
-			if channel.Guild.ID == guild.ID {
-				channelID, err := strconv.Atoi(channel.ID)
-
-				if err != nil {
-					fmt.Println(err)
-				}
-
-				newChannel := DiscordChannel{
-					ID:      channelID,
-					Name:    channel.Name,
-					Enabled: false,
-				}
-
-				newGuild.Channels = append(newGuild.Channels, newChannel)
-			}
-		}
-		DiscordGuilds = append(DiscordGuilds, newGuild)
-	}
-
-	// fix direct messages & groups
-	groupMessagesGuild := DiscordGuild{
-		ID:       1,
-		Name:     "Groups",
-		Channels: nil,
-	}
-
-	// check for groups which have a type value of 3
-	for _, channel := range loadedChannels {
-		if channel.Type == 3 {
-			newGroupId, err := strconv.Atoi(channel.ID)
-
-			if err != nil {
-				log.Println("Failed to parse channel " + channel.Name + " ID: " + err.Error())
-			}
-
-			newGroup := DiscordChannel{
-				ID:      newGroupId,
-				Name:    channel.Name,
-				Enabled: false,
-			}
-
-			groupMessagesGuild.Channels = append(groupMessagesGuild.Channels, newGroup)
-		}
-	}
-
-	directMessagesGuild := DiscordGuild{
-		ID:       0,
-		Name:     "Direct Messages",
-		Channels: nil,
-	}
-
-	// find the direct message names from index.json file
-	index, err := os.ReadFile(directory.Name() + string(os.PathSeparator) + "index.json")
+	// check that directory has the index.json file
+	_, err = os.Stat(path.Join(directory.Name(), "index.json"))
 
 	if err != nil {
-		fmt.Println(err)
+		return fmt.Errorf("failed to stat index.json file from %s: %v", directory.Name(), err)
 	}
 
-	marshalledIndex := map[string]string{}
-	err = json.Unmarshal(index, &marshalledIndex)
-
+	// load the raw channel info
+	channelInfo, err := LoadChannels(directory)
 	if err != nil {
-		fmt.Println(err)
+		return fmt.Errorf("failed to read channels from %s: %v", directory.Name(), err)
 	}
 
-	for key, value := range marshalledIndex {
-		if strings.HasPrefix(value, "Direct Message with") {
-			channelID, err := strconv.Atoi(key)
-
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			newDirectMessage := DiscordChannel{
-				ID:      channelID,
-				Name:    value,
-				Enabled: false,
-			}
-			directMessagesGuild.Channels = append(directMessagesGuild.Channels, newDirectMessage)
-		}
+	// open index.json file for decoding direct messages
+	indexFile, err := os.Open(path.Join(directory.Name(), "index.json"))
+	if err != nil {
+		return fmt.Errorf("failed to open index file from %s: %v", directory.Name(), err)
 	}
 
-	// check if the guilds have channels, append if they do
-	if groupMessagesGuild.Channels != nil {
-		DiscordGuilds = append(DiscordGuilds, groupMessagesGuild)
-	}
-	if directMessagesGuild.Channels != nil {
-		DiscordGuilds = append(DiscordGuilds, directMessagesGuild)
+	dmInfo, err := LoadDirectMessages(indexFile)
+	if err != nil {
+		return fmt.Errorf("failed to read direct messages from %s: %v", directory.Name(), err)
 	}
 
-	// start GUI for selecting enabled channels
+	// create the guilds
+	DiscordGuilds, err = CreateGuilds(channelInfo, dmInfo)
+	if err != nil {
+		return fmt.Errorf("failed to create guilds from channel infos: %v", err)
+	}
+
+	if err := indexFile.Close(); err != nil {
+		log.Printf("Failed to close index file %s: %v", indexFile.Name(), err)
+	}
+
+	// check that some guilds were loaded
+	if len(DiscordGuilds) < 1 {
+		return fmt.Errorf("no guilds found")
+	}
+
+	// start CUI for selecting enabled channels
 	DiscordChannelSelectionCUI()
 
 	// report model name and enabled channels after GUI
-	fmt.Println("Model filename: " + ModelFileName)
-	fmt.Println("Model name: " + ModelName)
-	fmt.Println("Enabled channels:")
+	fmt.Printf("Model filename: %s\n"+
+		"Model name: %s\n"+
+		"Enabled channels:\n",
+		ModelFileName, ModelName)
 
 	for _, guild := range DiscordGuilds {
 		for _, channel := range guild.Channels {
@@ -272,74 +190,8 @@ func CreateModelInit(directory *os.File) {
 		log.Fatal(err)
 	}
 
-	switch strings.ToLower(string(resultChar)) {
-	case "y":
-		CreateModel(directory)
-	case "n":
-		fmt.Println("Aborted")
-	}
-}
-
-// LoadChannelInfoFromMessages finds, reads & decodes .json files from Discord messages data folder
-func LoadChannelInfoFromMessages(directory *os.File) []DiscordMessagesChannelInfoFromFile {
-	channelInfo := make([]DiscordMessagesChannelInfoFromFile, 0)
-
-	// create the channel worker for Skywalker
-	cw := new(ChannelWorker)
-	cw.Mutex = new(sync.Mutex)
-
-	// use Skywalker module to check every subdirectory for .json files
-	sw := skywalker.New(directory.Name(), cw)
-	sw.ExtListType = skywalker.LTWhitelist
-	sw.ExtList = []string{".json"}
-	sw.FilesOnly = true
-
-	err := sw.Walk()
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-	sort.Sort(sort.StringSlice(cw.found))
-	for _, f := range cw.found {
-		channelData, err := os.ReadFile(f)
-
-		if err != nil {
-			log.Println("Failed to read file " + f + ": " + err.Error())
-			continue
-		}
-		newChannel := DiscordMessagesChannelInfoFromFile{}
-
-		if err = json.Unmarshal(channelData, &newChannel); err != nil {
-			log.Println("Failed to decode file " + f + ": " + err.Error())
-		}
-
-		if newChannel.Name != "" {
-			channelInfo = append(channelInfo, newChannel)
-		}
-	}
-
-	return channelInfo
-}
-
-// CheckForDuplicateGuilds checks & removes duplicate guilds from a []DiscordMessagesChannelGuildInfoFromFile
-func CheckForDuplicateGuilds(guilds []DiscordMessagesChannelGuildInfoFromFile) []DiscordMessagesChannelGuildInfoFromFile {
-	occurred := map[string]bool{}
-	result := make([]DiscordMessagesChannelGuildInfoFromFile, 0)
-
-	for i := range guilds {
-		if occurred[guilds[i].ID] != true {
-			occurred[guilds[i].ID] = true
-			result = append(result, guilds[i])
-		}
-	}
-	return result
-}
-
-// CreateModel parses messages from messages.csv files, sanitizes them and saves them into a WordModel
-func CreateModel(fileOrDirectory *os.File) {
-	// check that there are some guilds
-	if len(DiscordGuilds) < 1 {
-		log.Fatalln("No guilds loaded, aborting")
+	if strings.ToLower(string(resultChar)) != "y" {
+		return fmt.Errorf("aborted by user")
 	}
 
 	// check model name & modify is necessary
@@ -359,81 +211,327 @@ func CreateModel(fileOrDirectory *os.File) {
 
 	log.Println("Making model " + ModelName)
 
-	// create slice of parsed messages
 	var messagesParsed []MessagesCsv
 
-	// find if we have a file or a directory
-	fileInfo, err := fileOrDirectory.Stat()
+	// parse the messages.csv files for all enabled channels
+	for _, guild := range DiscordGuilds {
+		for _, channel := range guild.Channels {
+			if channel.Enabled == true {
+				log.Printf("Processing channel %s in guild %s\n", channel.Name, guild.Name)
 
-	if err != nil {
-		log.Fatalln("Could not read " + fileOrDirectory.Name() + ": " + err.Error())
-	}
+				// get the filepath of the channel's messages.csv
+				messagesFilePath := path.Join(directory.Name(), fmt.Sprintf("c%d", channel.ID), "messages.csv")
 
-	// set processing mode
-	if fileInfo.IsDir() == true {
-		// directory processing mode
+				// open the messages.csv of the channel
+				messagesCsv, err := os.Open(messagesFilePath)
 
-		if err != nil {
-			log.Fatalln("Failed to read directory contents: " + err.Error())
-		}
-		// loop through all enabled channels & process their messages.csv files
-		for _, guild := range DiscordGuilds {
-			for _, channel := range guild.Channels {
-				if channel.Enabled == true {
-					log.Println("Processing channel " + channel.Name + " in guild " + guild.Name)
-
-					// get the filepath of the channel's messages.csv
-					messagesFilePath := path.Clean(fileOrDirectory.Name() + string(os.PathSeparator) + "c" + strconv.Itoa(channel.ID) + string(os.PathSeparator) + "messages.csv")
-
-					// open the messages.csv of the channel
-					messagesCsv, err := os.Open(messagesFilePath)
-
-					if err != nil {
-						log.Fatalln("Failed to read messages.csv for channel " + channel.Name + ": " + err.Error())
-					}
-
-					// parse messages & append to the slice
-					newMessagesParsed, err := ProcessMessagesCSV(messagesCsv)
-
-					if err != nil {
-						log.Fatalln("Error parsing messages.csv for channel " + channel.Name + ": " + err.Error())
-					}
-					messagesParsed = append(messagesParsed, newMessagesParsed...)
+				if err != nil {
+					return fmt.Errorf("failed to open messages.csv file for channel %s: %v", channel.Name, err)
 				}
+
+				parsedMessages, err := ProcessMessagesCSV(messagesCsv)
+
+				if err != nil {
+					log.Printf("Failed to parse messages from channel %s: %v\n", channel.Name, err)
+					continue
+				}
+
+				if err := messagesCsv.Close(); err != nil {
+					log.Printf("Failed to close file %s: %v\n", messagesCsv.Name(), err)
+				}
+
+				messagesParsed = append(messagesParsed, parsedMessages...)
+
 			}
 		}
+	}
 
-	} else {
-		// TODO file processing mode
+	// close the directory file since it's no longer needed
+	if err := directory.Close(); err != nil {
+		log.Printf("Failed to close directory %s: %v\n", directory.Name(), err)
 	}
 
 	// check if any messages were parsed
 	if len(messagesParsed) < 1 {
 		log.Panicln("No messages were parsed, aborting")
 	}
+
 	log.Printf("Parsed %d total messages\n", len(messagesParsed))
 
-	// filter messages
 	log.Println("Now sanitizing messages and splitting words")
 	wordList := SanitizeMessages(messagesParsed)
 
-	// save model
-	log.Println("Word processing done, saving model to models/" + ModelFileName)
-
-	err = SaveModel(wordList)
-
-	if err != nil {
-		log.Fatalln(err)
+	// check that wordList is not empty
+	if len(wordList) < 1 {
+		return fmt.Errorf("no messages were found")
 	}
+
+	// save model
+	var saveDirectory string
+
+	if configLoaded == true && LoadedConfig.ModelDirectory != "" {
+		saveDirectory = path.Join(LoadedConfig.ModelDirectory)
+	} else {
+		wd, err := os.Executable()
+		if err != nil {
+			return fmt.Errorf("failed to find the executable directory for model saving location: %v", err)
+		}
+		saveDirectory = path.Join(path.Dir(wd), "models")
+	}
+
+	log.Printf("Word processing done, now saving model to %s\n", path.Join(saveDirectory, ModelFileName))
+
+	// check if models folder exists, create if not
+	_, err = os.Stat(saveDirectory)
+
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(saveDirectory, 0770); err != nil {
+			return fmt.Errorf("failed to create models directory at %s: %v", saveDirectory, err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed to open models directory at %s: %v", saveDirectory, err)
+	}
+
+	// check if model with same name already exists, create & open model file
+	var fileExists bool
+	var modelFile *os.File
+
+	_, err = os.Stat(path.Join(saveDirectory, ModelFileName))
+
+	if err == nil {
+		fileExists = true
+	} else if os.IsNotExist(err) {
+		fileExists = false
+	}
+
+	if fileExists == false {
+		// file doesn't exist, create
+		modelFile, err = os.OpenFile(path.Join(saveDirectory, ModelFileName), os.O_WRONLY|os.O_CREATE, 0664)
+		if err != nil {
+			return fmt.Errorf("failed to open model file %s for writing: %v", ModelFileName, err)
+		}
+	} else {
+		// file exists, ask user if it's ok to overwrite
+		fmt.Println("Model " + ModelFileName + " already exists, overwrite? y/n")
+		reader = bufio.NewReader(os.Stdin)
+		resultChar, _, err := reader.ReadRune()
+
+		if err != nil {
+			return fmt.Errorf("invalid input, only use y/n")
+		}
+
+		switch strings.ToLower(string(resultChar)) {
+		case "y":
+			modelFile, err = os.OpenFile(path.Join(saveDirectory, ModelFileName), os.O_TRUNC|os.O_WRONLY, 0664)
+			if err != nil {
+				return fmt.Errorf("failed to open model file %s for writing: %v", ModelFileName, err)
+			}
+		case "n":
+			return fmt.Errorf("user aborted model creation")
+		default:
+			return fmt.Errorf("invalid input, only use y/n")
+		}
+	}
+
+	// finally encode & save model to file
+	enc := gob.NewEncoder(modelFile)
+	if err := enc.Encode(WordModel{ModelName, wordList}); err != nil {
+		return fmt.Errorf("failed to encode data to model file %s: %v", modelFile.Name(), err)
+	}
+
+	if err := modelFile.Close(); err != nil {
+		log.Printf("Failed to close model file %s: %v\n", modelFile.Name(), err)
+	}
+
+	return nil
 }
 
-// ProcessMessagesCSV decodes a channels messages.csv file into a MessagesCsv
-func ProcessMessagesCSV(csvFile *os.File) ([]MessagesCsv, error) {
-	if strings.HasSuffix(csvFile.Name(), "messages.csv") == false {
-		return nil, errors.New("filename " + csvFile.Name() + " is not messages.csv")
+func LoadChannels(directory *os.File) ([]DiscordMessagesChannelInfoFromFile, error) {
+	channelInfo := make([]DiscordMessagesChannelInfoFromFile, 0)
+
+	// create the channel worker for Skywalker
+	cw := new(ChannelWorker)
+	cw.Mutex = new(sync.Mutex)
+
+	// use Skywalker module to check every subdirectory for .json files
+	sw := skywalker.New(directory.Name(), cw)
+	sw.ExtListType = skywalker.LTWhitelist
+	sw.ExtList = []string{".json"}
+	sw.FilesOnly = true
+
+	err := sw.Walk()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read subdirectories: %v", err)
 	}
 
-	var messages []MessagesCsv
+	sort.Sort(sort.StringSlice(cw.found))
+
+	for _, cf := range cw.found {
+		file, err := os.Open(cf)
+		if err != nil {
+			log.Printf("Failed to open file %s: %v\n", cf, err)
+			continue
+		}
+
+		newChannel := DiscordMessagesChannelInfoFromFile{}
+
+		dec := json.NewDecoder(file)
+
+		if err = dec.Decode(&newChannel); err != nil {
+			log.Printf("Failed to decode file %s: %v\n", file.Name(), err)
+		}
+
+		if newChannel.Name != "" {
+			channelInfo = append(channelInfo, newChannel)
+		}
+
+		if err := file.Close(); err != nil {
+			log.Printf("Failed to close file %s: %v\n", file.Name(), err)
+		}
+	}
+
+	return channelInfo, nil
+}
+
+func LoadDirectMessages(indexFile *os.File) (DiscordGuild, error) {
+	directMessagesDecoded := map[string]string{}
+	directMessagesGuild := DiscordGuild{
+		ID:       1,
+		Name:     "Direct Messages",
+		Channels: nil,
+	}
+
+	dec := json.NewDecoder(indexFile)
+	if err := dec.Decode(&directMessagesDecoded); err != nil {
+		return directMessagesGuild, fmt.Errorf("failed to decode file %s: %v", indexFile.Name(), err)
+	}
+
+	for key, value := range directMessagesDecoded {
+		if strings.HasPrefix(value, "Direct Message with") {
+			channelID, err := strconv.Atoi(key)
+			if err != nil {
+				return directMessagesGuild, fmt.Errorf("failed to convert channel ID %s to integer: %v", key, err)
+			}
+
+			newDirectMessage := DiscordChannel{
+				ID:      channelID,
+				Name:    value,
+				Enabled: false,
+			}
+
+			directMessagesGuild.Channels = append(directMessagesGuild.Channels, newDirectMessage)
+		}
+	}
+
+	return directMessagesGuild, nil
+}
+
+func CreateGuilds(channelData []DiscordMessagesChannelInfoFromFile, directMessagesGuild DiscordGuild) ([]DiscordGuild, error) {
+	// create list of guilds from channels
+	discordGuilds := make([]DiscordGuild, 0)
+	listOfGuilds := make([]DiscordMessagesChannelGuildInfoFromFile, 0)
+
+	for _, channel := range channelData {
+		newGuild := DiscordMessagesChannelGuildInfoFromFile{
+			ID:   channel.Guild.ID,
+			Name: channel.Guild.Name,
+		}
+		listOfGuilds = append(listOfGuilds, newGuild)
+	}
+
+	// remove duplicate guilds
+	listOfGuildsParsed := CheckForDuplicateGuilds(listOfGuilds)
+
+	// organize guilds with channels
+	for _, guild := range listOfGuildsParsed {
+		guildID, err := strconv.Atoi(guild.ID)
+		if err != nil {
+			guildID = 0
+		}
+
+		if guild.Name == "" {
+			continue
+		}
+
+		newGuild := DiscordGuild{
+			ID:       guildID,
+			Name:     guild.Name,
+			Channels: nil,
+		}
+
+		for _, channel := range channelData {
+			if channel.Guild.ID == guild.ID {
+				channelID, err := strconv.Atoi(channel.ID)
+				if err != nil {
+					return nil, fmt.Errorf("failed to convert channel ID %s to integer: %v", channel.ID, err)
+				}
+
+				newChannel := DiscordChannel{
+					ID:      channelID,
+					Name:    channel.Name,
+					Enabled: false,
+				}
+
+				newGuild.Channels = append(newGuild.Channels, newChannel)
+			}
+		}
+		discordGuilds = append(discordGuilds, newGuild)
+	}
+
+	// add groups
+	groupMessagesGuild := DiscordGuild{
+		ID:       0,
+		Name:     "Groups",
+		Channels: nil,
+	}
+
+	// check for groups which have a type value of 3
+	for _, channel := range channelData {
+		if channel.Type == 3 {
+			newGroupID, err := strconv.Atoi(channel.ID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert channel ID %s to integer: %v", channel.ID, err)
+			}
+
+			newGroup := DiscordChannel{
+				ID:      newGroupID,
+				Name:    channel.Name,
+				Enabled: false,
+			}
+
+			groupMessagesGuild.Channels = append(groupMessagesGuild.Channels, newGroup)
+		}
+	}
+
+	// check if any groups were found & append if yes
+	if groupMessagesGuild.Channels != nil {
+		discordGuilds = append(discordGuilds, groupMessagesGuild)
+	}
+
+	// same with DMs
+	if directMessagesGuild.Channels != nil {
+		discordGuilds = append(discordGuilds, directMessagesGuild)
+	}
+
+	return discordGuilds, nil
+}
+
+// CheckForDuplicateGuilds checks & removes duplicate guilds from a []DiscordMessagesChannelGuildInfoFromFile
+func CheckForDuplicateGuilds(guilds []DiscordMessagesChannelGuildInfoFromFile) []DiscordMessagesChannelGuildInfoFromFile {
+	occurred := map[string]bool{}
+	result := make([]DiscordMessagesChannelGuildInfoFromFile, 0)
+
+	for i := range guilds {
+		if occurred[guilds[i].ID] != true {
+			occurred[guilds[i].ID] = true
+			result = append(result, guilds[i])
+		}
+	}
+	return result
+}
+
+func ProcessMessagesCSV(csvFile *os.File) ([]MessagesCsv, error) {
+	var parsedMessages []MessagesCsv
 
 	reader := csv.NewReader(csvFile)
 	reader.FieldsPerRecord = 4
@@ -444,7 +542,7 @@ func ProcessMessagesCSV(csvFile *os.File) ([]MessagesCsv, error) {
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to read CSV file %s: %v", csvFile.Name(), err)
 		}
 
 		// skip the first line which has the record info
@@ -455,7 +553,7 @@ func ProcessMessagesCSV(csvFile *os.File) ([]MessagesCsv, error) {
 		newMessageId, err := strconv.Atoi(record[0])
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to convert message ID %s to integer: %v", record[0], err)
 		}
 
 		newMessage := MessagesCsv{
@@ -465,20 +563,24 @@ func ProcessMessagesCSV(csvFile *os.File) ([]MessagesCsv, error) {
 			Attachments: record[3],
 		}
 
-		messages = append(messages, newMessage)
+		parsedMessages = append(parsedMessages, newMessage)
 	}
-	return messages, nil
+
+	if len(parsedMessages) < 1 {
+		return nil, fmt.Errorf("no messages were parsed from the file %s", csvFile.Name())
+	}
+
+	return parsedMessages, nil
 }
 
-// SanitizeMessages cleans up the messages from a slice of MessagesCsv, separating them into words and
-// removing URLs, animated emojis, mentions and empty words from them
 func SanitizeMessages(messages []MessagesCsv) []string {
 	// separate strings into words
-	wordList := make([]string, 0)
+	var wordList []string
 
 	// loop through all messages, separate into words
 	for _, message := range messages {
 		messageWords := strings.Split(message.Contents, " ")
+
 		for _, word := range messageWords {
 
 			// word is empty, skip
@@ -518,84 +620,6 @@ func SanitizeMessages(messages []MessagesCsv) []string {
 		}
 	}
 	return wordList
-}
-
-// SaveModel makes a new WordModel with the name of ModelName and encodes it to ModelFileName
-func SaveModel(words []string) error {
-	// check that words contain something
-	if len(words) < 1 {
-		return errors.New("word list is empty")
-	}
-
-	// open model file for writing by first finding the path of the executable
-	programPath, err := os.Executable()
-
-	if err != nil {
-		return errors.New("Unable to find executable path: " + err.Error())
-	}
-
-	programPath, _ = filepath.Split(programPath)
-
-	// check if models folder exists, create if not
-	_, err = os.Stat(programPath + string(os.PathSeparator) + "models")
-
-	if os.IsNotExist(err) {
-		err := os.Mkdir(programPath+string(os.PathSeparator)+"models", 0770)
-		if err != nil {
-			return errors.New("Failed to create models directory at " + programPath + ": " + err.Error())
-		}
-	} else if err != nil {
-		return errors.New("Failed to read models folder at " + programPath + ": " + err.Error())
-	}
-
-	// check if model with same name already exists, create & open model file, finally write model to file
-
-	_, err = os.Stat(programPath + string(os.PathSeparator) + "models" + string(os.PathSeparator) + ModelFileName)
-
-	if os.IsNotExist(err) {
-		modelFile, err := os.OpenFile(programPath+string(os.PathSeparator)+"models"+string(os.PathSeparator)+ModelFileName, os.O_WRONLY|os.O_CREATE, 0664)
-		if err != nil {
-			return errors.New("Failed creating model file " + ModelName + ": " + err.Error())
-		}
-		enc := gob.NewEncoder(modelFile)
-		err = enc.Encode(WordModel{ModelName, words})
-
-		if err != nil {
-			return errors.New("Error encoding data: " + err.Error())
-		}
-	} else if err != nil {
-		return errors.New("Failed to read file " + ModelName + ": " + err.Error())
-	} else {
-		// file already exists, ask if user wants to overwrite it
-		fmt.Println("Model " + ModelFileName + " already exists, overwrite? y/n")
-		reader := bufio.NewReader(os.Stdin)
-		resultChar, _, err := reader.ReadRune()
-
-		if err != nil {
-			return err
-		}
-
-		switch strings.ToLower(string(resultChar)) {
-		case "y":
-			modelFile, err := os.OpenFile(programPath+string(os.PathSeparator)+"models"+string(os.PathSeparator)+ModelFileName, os.O_TRUNC|os.O_WRONLY, 0664)
-			if err != nil {
-				return errors.New("Failed to create model file " + ModelName + ": " + err.Error())
-			}
-
-			enc := gob.NewEncoder(modelFile)
-			err = enc.Encode(WordModel{ModelName, words})
-
-			if err != nil {
-				return errors.New("Error encoding data: " + err.Error())
-			}
-		case "n":
-			return errors.New("File " + ModelName + " already exists")
-		default:
-			return errors.New("invalid answer, only use y/n")
-		}
-	}
-
-	return nil
 }
 
 // LoadModel loads a WordModel from os.File
