@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path"
 	"strconv"
 	"time"
 )
@@ -77,12 +78,14 @@ var (
 			msg += " using model " + wordModels[optionMap["model"].IntValue()].Name
 
 			// send response
-			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
 					Content: msg,
 				},
-			})
+			}); err != nil {
+				logger.Printf("Failed to send interaction response: %v\n", err)
+			}
 
 			// generate the text
 			var generatedText string
@@ -100,9 +103,11 @@ var (
 				Content: msg + "\n\n" + generatedText,
 			})
 			if err != nil {
-				s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
+				if _, err := s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
 					Content: "Something went wrong",
-				})
+				}); err != nil {
+					logger.Printf("Failed to send followup message: %v\n", err)
+				}
 				return
 			}
 		},
@@ -125,24 +130,56 @@ func RunBot() error {
 	logger = log.New(logMultiWriter, "", log.Flags())
 
 	// read the model directory contents & load the models found
-	// TODO individual file mode
-	modelDirectoryContents, err := os.ReadDir(LoadedConfig.ModelDirectory)
+	// check if models are set in config
+	if len(LoadedConfig.ModelsToUse) > 0 {
+		for i := range LoadedConfig.ModelsToUse {
+			var modelFile *os.File
 
-	if err != nil {
-		return errors.New("Failed to read model folder " + LoadedConfig.ModelDirectory + ": " + err.Error())
-	}
+			modelFile, err = os.Open(path.Clean(LoadedConfig.ModelsToUse[i]))
 
-	for _, file := range modelDirectoryContents {
-		modelFile, err := os.Open(LoadedConfig.ModelDirectory + file.Name())
-		if err != nil {
-			return errors.New("failed to open model " + file.Name() + ": " + err.Error())
+			if err != nil {
+				// try to find in config models dir
+				modelFile, err = os.Open(path.Join(LoadedConfig.ModelDirectory, LoadedConfig.ModelsToUse[i]))
+
+				if err != nil {
+					logger.Printf("Failed to load model file %s: %v\n", LoadedConfig.ModelsToUse[i], err)
+					continue
+				}
+			}
+
+			wordModel, err := LoadModel(modelFile)
+			if err != nil {
+				logger.Printf("Failed to load model from file %s: %v\n", modelFile.Name(), err)
+			}
+
+			logger.Printf("Loaded %d words from model %s\n", len(wordModel.Words), wordModel.Name)
+
+			if err := modelFile.Close(); err != nil {
+				logger.Printf("Failed to close model file %s: %v", modelFile.Name(), err)
+			}
+
+			wordModels = append(wordModels, wordModel)
 		}
-		wordModel, err := LoadModel(modelFile)
+	} else {
+		// Load whole directory
+		modelDirectoryContents, err := os.ReadDir(LoadedConfig.ModelDirectory)
+
 		if err != nil {
-			return errors.New("failed to decode model " + modelFile.Name() + ": " + err.Error())
+			return errors.New("Failed to read model folder " + LoadedConfig.ModelDirectory + ": " + err.Error())
 		}
-		logger.Printf("Loaded %d words from model %s\n", len(wordModel.Words), wordModel.Name)
-		wordModels = append(wordModels, wordModel)
+
+		for _, file := range modelDirectoryContents {
+			modelFile, err := os.Open(LoadedConfig.ModelDirectory + file.Name())
+			if err != nil {
+				return errors.New("failed to open model " + file.Name() + ": " + err.Error())
+			}
+			wordModel, err := LoadModel(modelFile)
+			if err != nil {
+				return errors.New("failed to decode model " + modelFile.Name() + ": " + err.Error())
+			}
+			logger.Printf("Loaded %d words from model %s\n", len(wordModel.Words), wordModel.Name)
+			wordModels = append(wordModels, wordModel)
+		}
 	}
 
 	// check that some models were loaded
@@ -186,9 +223,8 @@ func RunBot() error {
 		logger.Printf("Logged in as %s#%s\n", s.State.User.Username, s.State.User.Discriminator)
 	})
 
-	err = bot.Open()
-	if err != nil {
-		return errors.New(fmt.Sprintf("cannot open the session: %v", err))
+	if err := bot.Open(); err != nil {
+		return fmt.Errorf("cannot open the session: %v", err)
 	}
 
 	// register the commands from botCommands
@@ -212,7 +248,6 @@ func RunBot() error {
 
 	// remove the commands & shut down
 	logger.Println("Removing commands...")
-	// // We need to fetch the commands, since deleting requires the command ID.
 	registeredCommands, err = bot.ApplicationCommands(bot.State.User.ID, LoadedConfig.GuildID)
 	if err != nil {
 		logger.Fatalf("Could not fetch registered commands: %v", err)
@@ -226,6 +261,11 @@ func RunBot() error {
 	}
 
 	logger.Println("Gracefully shutting down.")
+
+	logger = nil
+	if err := logFile.Close(); err != nil {
+		return fmt.Errorf("failed to close log file %s: %v", logFile.Name(), err)
+	}
 	return nil
 }
 
@@ -238,7 +278,7 @@ func openLog() (*os.File, error) {
 	_, err := os.Stat(LoadedConfig.LogDir)
 
 	if os.IsNotExist(err) {
-		err := os.Mkdir(LoadedConfig.LogDir, 0775)
+		err := os.MkdirAll(LoadedConfig.LogDir, 0775)
 		if err != nil {
 			return nil, errors.New("failed to create log directory " + LoadedConfig.LogDir + ": " + err.Error())
 		}
