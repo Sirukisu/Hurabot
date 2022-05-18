@@ -2,3 +2,4 @@ models/
 logs/
 Hurabotti*
 config.json
+go.sum
