@@ -98,17 +98,35 @@ var (
 
 			generatedText = GenerateWords(wordModels[optionMap["model"].IntValue()], &amountOfWords)
 
-			// edit the response with the generated text
-			_, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-				Content: msg + "\n\n" + generatedText,
-			})
-			if err != nil {
-				if _, err := s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
-					Content: "Something went wrong",
-				}); err != nil {
-					logger.Printf("Failed to send followup message: %v\n", err)
+			// split text to max 2000 letter messages
+			messagesToSend := splitText(msg + "\n\n" + generatedText)
+
+			// send messages
+			for index := range messagesToSend {
+				// edit the first message
+				if index == 0 {
+					_, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+						Content: messagesToSend[index],
+					})
+					if err != nil {
+						logger.Printf("Failed to edit message: %v\n", err)
+
+						if _, err := s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
+							Content: "Something went wrong",
+						}); err != nil {
+							logger.Printf("Failed to send followup message: %v\n", err)
+						}
+						return
+					}
+				} else {
+					// send the rest as followup messages
+					if _, err := s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
+						Content: messagesToSend[index],
+					}); err != nil {
+						logger.Printf("Failed to create followup message: %v\n", err)
+						return
+					}
 				}
-				return
 			}
 		},
 	}
@@ -297,4 +315,32 @@ func openLog() (*os.File, error) {
 	}
 
 	return logFile, nil
+}
+
+// splitText splits the text to max 2000 letter messages
+func splitText(messageText string) []string {
+	messageTextRune := []rune(messageText)
+	messagesToSend := make([]string, 0)
+	index := 0
+
+	for {
+		messageRune := make([]rune, 0)
+
+		if len(messageTextRune)-index > 2000 {
+			for i := 0; i < 2000; i++ {
+				messageRune = append(messageRune, messageTextRune[index])
+				index++
+			}
+			messagesToSend = append(messagesToSend, string(messageRune))
+		} else {
+			for i := index; i < len(messageTextRune); i++ {
+				messageRune = append(messageRune, messageTextRune[index])
+				index++
+			}
+			messagesToSend = append(messagesToSend, string(messageRune))
+			break
+		}
+	}
+
+	return messagesToSend
 }
