@@ -8,6 +8,8 @@ import (
 	"strconv"
 )
 
+var ConfigNoSave bool = false
+
 // ConfigEditCUI open CUI for editing configs
 func ConfigEditCUI(configFile *os.File) {
 	// check if file was provided
@@ -64,7 +66,7 @@ func ConfigEditCUI(configFile *os.File) {
 		log.Panicln(err)
 	}
 	// keybinding for quiting the CUI
-	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, gocuiQuit); err != nil {
+	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, gocuiQuitWithoutSave); err != nil {
 		log.Panicln(err)
 	}
 
@@ -663,4 +665,9 @@ func configEditModelsToUseRemoveModel(g *gocui.Gui, v *gocui.View) error {
 func configEditModelsToUseRemoveFromSlice(s []string, i int) []string {
 	s[i] = s[len(s)-1]
 	return s[:len(s)-1]
+}
+
+func gocuiQuitWithoutSave(_ *gocui.Gui, _ *gocui.View) error {
+	ConfigNoSave = true
+	return gocui.ErrQuit
 }

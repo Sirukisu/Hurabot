@@ -77,7 +77,7 @@ func main() {
 	// handle model commands
 	if modelCommandCreate.Happened() {
 		if err := CreateModel(modelCommandCreateArgs); err != nil {
-			fmt.Printf("Error creating model: %v", err)
+			fmt.Printf("Error creating model: %v\n", err)
 		}
 		return
 	}

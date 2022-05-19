@@ -101,7 +101,7 @@ func ConfigShowConfig(configFile *os.File) error {
 	}
 	fmt.Printf("Maximum words: %d\n"+
 		"Log directory: %s\n"+
-		"Logging level: %s",
+		"Logging level: %s\n",
 		LoadedConfig.MaxWords, LoadedConfig.LogDir, LoadedConfig.LogLevel)
 
 	return nil
@@ -172,6 +172,11 @@ func ConfigCreateEmptyConfig(configFile *os.File) error {
 func ConfigEdit(configFile *os.File) {
 
 	ConfigEditCUI(configFile)
+
+	if ConfigNoSave == true {
+		fmt.Println("Config editing cancelled")
+		return
+	}
 
 	botConfigJson, err := json.MarshalIndent(LoadedConfig, "", "\t")
 
