@@ -275,6 +275,7 @@ func configEditEnterHandler(g *gocui.Gui, v *gocui.View) error {
 					return err
 				}
 			}
+		// open edit max words view
 		case 4:
 			if v, err := g.SetView("editMaxWords", maxX/2-30, maxY/2, maxX/2+30, maxY/2+2); err != nil {
 				if err != gocui.ErrUnknownView {
@@ -637,6 +638,10 @@ func configEditModelsToUseRemoveModel(g *gocui.Gui, v *gocui.View) error {
 	modelSelected := cy + oy
 
 	if _, err := v.Line(cy); err != nil {
+		return nil
+	}
+
+	if len(LoadedConfig.ModelsToUse) <= modelSelected {
 		return nil
 	}
 

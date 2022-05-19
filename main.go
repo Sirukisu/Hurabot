@@ -21,16 +21,16 @@ func main() {
 
 	// model creation command
 	modelCommandCreate := modelCommand.NewCommand("create", "create new model from discord messages")
-	modelCommandCreateArgs := modelCommandCreate.File("f", "file", os.O_RDONLY, 0660, &argparse.Options{
+	modelCommandCreateArgs := modelCommandCreate.File("d", "directory", os.O_RDONLY, 0660, &argparse.Options{
 		Required: true,
 		Validate: nil,
 		Help:     "Discord messages folder to process",
 		Default:  nil,
 	})
 
-	// model list command
+	// model show command
 	modelCommandShow := modelCommand.NewCommand("show", "show info from a model")
-	modelCommandShowArgs := modelCommandShow.FileList("f", "file", os.O_RDONLY, 0440, modelCommandModelFileOptions)
+	modelCommandShowArgs := modelCommandShow.FileList("m", "model", os.O_RDONLY, 0440, modelCommandModelFileOptions)
 
 	// model text generation command
 	modelCommandGenerate := modelCommand.NewCommand("generate", "Generate random text from a model")
@@ -62,10 +62,8 @@ func main() {
 	configCommandEditConfigFile := configCommandEdit.File("c", "config-file", os.O_RDWR, 0660, configCommandFileOptions)
 
 	// BOT COMMANDS
-	botCommand := parser.NewCommand("bot", "bot options")
-
-	botCommandRun := botCommand.NewCommand("run", "Run the bot")
-	botCommandRunConfigArg := botCommandRun.File("c", "config-file", os.O_RDONLY, 0660, configCommandFileOptions)
+	botCommand := parser.NewCommand("run", "run the bot")
+	botCommandRunConfigArg := botCommand.File("c", "config-file", os.O_RDONLY, 0660, configCommandFileOptions)
 
 	// END OF ARGUMENTS
 
@@ -81,6 +79,7 @@ func main() {
 		if err := CreateModel(modelCommandCreateArgs); err != nil {
 			fmt.Printf("Error creating model: %v", err)
 		}
+		return
 	}
 	if modelCommandShow.Happened() {
 		if len(*modelCommandShowArgs) == 0 {
@@ -113,6 +112,7 @@ func main() {
 		fmt.Printf("Loaded %d words from model %s\n", len(wordModel.Words), wordModel.Name)
 
 		fmt.Println(GenerateWords(wordModel, modelCommandGenerateCountArg))
+		return
 	}
 
 	// handle config commands
@@ -134,7 +134,7 @@ func main() {
 	}
 
 	// handle bot commands
-	if botCommandRun.Happened() {
+	if botCommand.Happened() {
 		if err := ConfigLoadConfig(botCommandRunConfigArg); err != nil {
 			fmt.Printf("Failed to load config from %s: %s", botCommandRunConfigArg.Name(), err.Error())
 			return

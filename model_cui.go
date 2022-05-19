@@ -101,7 +101,7 @@ func discordChannelSelectionLayout(g *gocui.Gui) error {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
-		fmt.Fprintln(v, "CTRL+C Quit the CUI | CTRL+S Confirm choices | Space Enable or disable guild/channel")
+		fmt.Fprintln(v, "CTRL+C Quit the CUI | CTRL+S Confirm choices | Space Enable or disable")
 	}
 	return nil
 }
@@ -336,7 +336,7 @@ func saveName(g *gocui.Gui, _ *gocui.View) error {
 			return err
 		}
 
-		v.Title = "Enter name for model"
+		v.Title = "Enter name for model (Ctrl+D to cancel)"
 		v.Editable = true
 
 		if _, err := g.SetCurrentView("modelName"); err != nil {
@@ -383,7 +383,7 @@ func saveFileName(g *gocui.Gui, _ *gocui.View) error {
 			return err
 		}
 
-		v.Title = "Enter filename for model"
+		v.Title = "Enter filename for model (Ctrl+D to cancel)"
 		v.Editable = true
 
 		if _, err := g.SetCurrentView("modelFileName"); err != nil {

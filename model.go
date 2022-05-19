@@ -253,7 +253,7 @@ func CreateModel(directory *os.File) error {
 
 	// check if any messages were parsed
 	if len(messagesParsed) < 1 {
-		log.Panicln("No messages were parsed, aborting")
+		return fmt.Errorf("no messages were parsed")
 	}
 
 	log.Printf("Parsed %d total messages\n", len(messagesParsed))
