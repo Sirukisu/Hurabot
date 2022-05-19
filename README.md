@@ -6,7 +6,7 @@ A Discord bot that uses Markov chains to generate random text from your messages
 - Make word models from Discord messages data
 - Generate random text from these models
 - Launch a Discord bot that can generate messages with a slash command
-- Restrict Discord bot commands to a specific guild only
+- Restrict the bot commands to a specific guild only
 - Set a maximum amount of words that can be generated with a single command with the Discord bot
 
 
@@ -59,9 +59,9 @@ The current config options are as follows:
 
 
 ### Running the bot
-Run the bot by using the command `bot run`.
+Run the bot by using the command `run`.
 
-Generate text using the `/generate-text` slash command.
+Generate text in Discord with the `/generate-text` slash command.
 
 ## ✍ Features planned
 
